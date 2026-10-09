@@ -18,6 +18,7 @@ import {
 const PAGE_SIZE = 30;
 const SEND_TIMEOUT_MS = 10_000;
 const MAX_TEXT_LENGTH = 4000;
+const UPLOAD_TIMEOUT_MS = 120_000;
 
 // crypto.randomUUID only exists on HTTPS/localhost; fall back for LAN testing.
 const newClientId = () =>
@@ -56,7 +57,8 @@ export function useMessages(conversationId, currentUser) {
 
   const cidRef = useRef(conversationId);
   const latestRequestRef = useRef(0);
-  // clientId -> { blob, duration, previewUrl, replyTo } for voice notes not yet saved
+  // clientId -> { kind, blob, fileName, duration, caption, previewUrl, replyTo } for uploads
+  // (voice notes, photos, documents) not yet saved, so Retry can send them again.
   const voiceDraftsRef = useRef(new Map());
 
   useEffect(() => {
@@ -66,7 +68,7 @@ export function useMessages(conversationId, currentUser) {
   useEffect(() => {
     const drafts = voiceDraftsRef.current;
     return () => {
-      drafts.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl));
+      drafts.forEach(({ previewUrl }) => previewUrl && URL.revokeObjectURL(previewUrl));
       drafts.clear();
     };
   }, []);
@@ -79,7 +81,7 @@ export function useMessages(conversationId, currentUser) {
   const forgetVoiceDraft = useCallback((clientId) => {
     const draft = voiceDraftsRef.current.get(clientId);
     if (!draft) return;
-    URL.revokeObjectURL(draft.previewUrl);
+    if (draft.previewUrl) URL.revokeObjectURL(draft.previewUrl);
     voiceDraftsRef.current.delete(clientId);
   }, []);
 
@@ -165,13 +167,15 @@ export function useMessages(conversationId, currentUser) {
       const draft = voiceDraftsRef.current.get(clientId);
       if (!draft) return;
       const form = new FormData();
-      form.append('duration', String(draft.duration));
+      if (draft.kind === 'voice') form.append('duration', String(draft.duration));
+      if (draft.caption) form.append('caption', draft.caption);
       if (draft.replyTo?._id) form.append('replyTo', String(draft.replyTo._id));
-      form.append('file', draft.blob, voiceFileName(draft.blob.type));
+      form.append('file', draft.blob, draft.kind === 'voice' ? voiceFileName(draft.blob.type) : draft.fileName);
       try {
         const { data } = await api.post(`/messages/${cid}/media`, form, {
           // Explicit, so an instance-wide JSON default can't turn the form into JSON.
           headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: UPLOAD_TIMEOUT_MS, // documents can be 10 MB on slow campus Wi-Fi
           onUploadProgress: (e) => {
             if (e.total) updateFor(cid, (list) => patchDraft(list, clientId, { progress: e.loaded / e.total }));
           },
@@ -216,7 +220,7 @@ export function useMessages(conversationId, currentUser) {
       const clientId = newClientId();
       const previewUrl = URL.createObjectURL(blob);
       const quoted = replyPreview(replyTo);
-      voiceDraftsRef.current.set(clientId, { blob, duration, previewUrl, replyTo: quoted });
+      voiceDraftsRef.current.set(clientId, { kind: 'voice', blob, duration, previewUrl, replyTo: quoted });
 
       setMessages((list) => [
         ...list,
@@ -240,11 +244,48 @@ export function useMessages(conversationId, currentUser) {
     [conversationId, currentUser, uploadVoice],
   );
 
+  // Round 2: a photo or document. `mime` overrides an empty browser-reported type
+  // (some systems report Office files as ""). Options: { caption, replyTo }.
+  const sendFile = useCallback(
+    (file, { mime, caption, replyTo } = {}) => {
+      if (!conversationId || !file) return false;
+      const type = mime || file.type;
+      const blob = type && type !== file.type ? new Blob([file], { type }) : file;
+      const kind = type.startsWith('image/') ? 'image' : 'file';
+      const clientId = newClientId();
+      const previewUrl = kind === 'image' ? URL.createObjectURL(file) : undefined;
+      const quoted = replyPreview(replyTo);
+      const text = typeof caption === 'string' ? caption.trim().slice(0, MAX_TEXT_LENGTH) : '';
+      voiceDraftsRef.current.set(clientId, { kind, blob, fileName: file.name, caption: text, previewUrl, replyTo: quoted });
+
+      setMessages((list) => [
+        ...list,
+        {
+          clientId,
+          conversationId,
+          senderId: currentUser,
+          messageType: kind,
+          mediaUrl: previewUrl ?? '',
+          mediaType: type,
+          ...(kind === 'file' ? { fileName: file.name, fileSize: file.size, mimeType: type } : {}),
+          ...(text ? { text } : {}),
+          ...(quoted ? { replyTo: quoted } : {}),
+          createdAt: new Date().toISOString(),
+          status: 'uploading',
+          progress: 0,
+        },
+      ]);
+      uploadVoice(conversationId, clientId);
+      return true;
+    },
+    [conversationId, currentUser, uploadVoice],
+  );
+
   const retryMessage = useCallback(
     (clientId) => {
       const draft = messages.find((m) => isDraft(m, clientId) && m.status === 'failed');
       if (!draft) return;
-      const isVoice = draft.messageType === 'voice';
+      const isVoice = voiceDraftsRef.current.has(clientId); // any upload: voice, photo or document
       updateFor(conversationId, (list) =>
         patchDraft(list, clientId, { status: isVoice ? 'uploading' : 'sending', error: undefined, progress: 0 }),
       );
@@ -350,6 +391,7 @@ export function useMessages(conversationId, currentUser) {
     error,
     sendMessage,
     sendVoiceNote,
+    sendFile,
     retryMessage,
     discardMessage,
     editMessage,

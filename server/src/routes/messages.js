@@ -66,7 +66,8 @@ router.delete(
 );
 
 // POST /api/messages/:conversationId/media  (P3's implementation, wired as agreed)
-// multipart `file` + `duration` → 201 { message }. P3's createMediaMessage does the membership check,
+// multipart `file` + `duration` (+ Round 2: `caption`, `replyTo`) → 201 { message }.
+// Round 2 whitelist: voice, jpeg/png/webp/gif (≤ 5 MB), pdf/docx/xlsx/pptx/txt (≤ 10 MB). P3's createMediaMessage does the membership check,
 // magic-byte check, Cloudinary upload, createMessage and the `new_message` broadcast.
 router.post(
   '/:conversationId/media',
@@ -79,6 +80,7 @@ router.post(
       file: req.file,
       duration: req.body?.duration,
       replyTo: req.body?.replyTo, // Round 2
+      caption: req.body?.caption, // Round 2: photos and documents
     });
     res.status(201).json({ message });
   })

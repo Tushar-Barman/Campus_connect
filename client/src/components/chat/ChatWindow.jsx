@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageSquareOff } from 'lucide-react';
+import { FileUp, MessageSquareOff } from 'lucide-react';
 import { useMessages } from '@p3/hooks/useMessages.js';
 import { usePinnedMessages } from '@p3/hooks/usePinnedMessages.js';
 import { useTyping } from '@p3/hooks/useTyping.js';
@@ -13,6 +13,8 @@ import GroupInfoPanel from '../group/GroupInfoPanel.jsx';
 import ContactPanel from '../group/ContactPanel.jsx';
 import ChatMemoryPanel from '../memory/ChatMemoryPanel.jsx';
 import ConfirmDialog from '../ui/ConfirmDialog.jsx';
+import AttachSheet from '../media/AttachSheet.jsx';
+import { classifyAttachment } from '../../lib/media.js';
 import { EmptyState } from '../ui/Feedback.jsx';
 import { buttonClass } from '../ui/Button.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -42,6 +44,9 @@ export default function ChatWindow({ conversation }) {
   const [editing, setEditing] = useState(null); // message being edited in the Composer
   const [deleting, setDeleting] = useState(null); // message waiting for delete confirmation
   const [replyingTo, setReplyingTo] = useState(null); // message quoted in the Composer
+  const [attachment, setAttachment] = useState(null); // { file, kind, mime } waiting in the preview sheet
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
   const noticeTimer = useRef(null);
 
   const flash = useCallback((text) => {
@@ -122,6 +127,51 @@ export default function ChatWindow({ conversation }) {
     [conversation.type, conversation.participants, user?._id],
   );
 
+  // Round 2: files from the 📎 picker, paste or drag-and-drop. One at a time, previewed first.
+  const canAttach = Boolean(chat.sendFile);
+  const pickFiles = (files) => {
+    const file = files?.[0];
+    if (!file) return;
+    const result = classifyAttachment(file);
+    if (result.error) {
+      flash(result.error);
+      return;
+    }
+    if (files.length > 1) flash('One file at a time: sending the first one.');
+    setAttachment({ file, ...result });
+  };
+  const sendAttachment = (caption) => {
+    chat.sendFile(attachment.file, { mime: attachment.mime, caption, replyTo: replyingTo });
+    setAttachment(null);
+    setReplyingTo(null);
+  };
+  const hasFiles = (event) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
+  const dropHandlers = canAttach
+    ? {
+        onDragEnter: (e) => {
+          if (!hasFiles(e)) return;
+          e.preventDefault();
+          dragDepth.current += 1;
+          setDragging(true);
+        },
+        onDragOver: (e) => {
+          if (hasFiles(e)) e.preventDefault();
+        },
+        onDragLeave: (e) => {
+          if (!hasFiles(e)) return;
+          dragDepth.current = Math.max(0, dragDepth.current - 1);
+          if (!dragDepth.current) setDragging(false);
+        },
+        onDrop: (e) => {
+          if (!hasFiles(e)) return;
+          e.preventDefault();
+          dragDepth.current = 0;
+          setDragging(false);
+          pickFiles(e.dataTransfer.files);
+        },
+      }
+    : {};
+
   const sendVoice = (recording) => {
     chat.sendVoiceNote(recording, { replyTo: replyingTo });
     setReplyingTo(null);
@@ -150,7 +200,14 @@ export default function ChatWindow({ conversation }) {
   }
 
   return (
-    <div className="flex h-full flex-col bg-canvas">
+    <div className="relative flex h-full flex-col bg-canvas" {...dropHandlers}>
+      {dragging ? (
+        <div className="pointer-events-none absolute inset-2 z-40 flex flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed border-brand-500 bg-brand-50/90 text-brand-800 animate-fade-in">
+          <FileUp className="h-8 w-8" aria-hidden="true" />
+          <p className="text-sm font-semibold">Drop to share</p>
+          <p className="text-xs text-brand-700">Photos up to 5 MB · PDF, Word, Excel, PowerPoint, .txt up to 10 MB</p>
+        </div>
+      ) : null}
       <ChatHeader
         conversation={conversation}
         myId={user?._id}
@@ -194,7 +251,10 @@ export default function ChatWindow({ conversation }) {
         onCancelReply={() => setReplyingTo(null)}
         myId={user?._id}
         members={members}
+        onAttachFiles={canAttach ? pickFiles : undefined}
       />
+
+      <AttachSheet attachment={attachment} onSend={sendAttachment} onCancel={() => setAttachment(null)} />
 
       <ConfirmDialog
         open={Boolean(deleting)}

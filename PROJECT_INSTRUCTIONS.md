@@ -169,7 +169,7 @@ Password: minimum 8 characters. Email normalised to lowercase.
 | GET | `/messages/:conversationId/pinned` | → `{ messages }` |
 | POST | `/messages/:conversationId/pin/:messageId` | Pin |
 | DELETE | `/messages/:conversationId/pin/:messageId` | Unpin |
-| POST | `/messages/:conversationId/media` | multipart `file` + `duration`; creates the message and broadcasts it (Phase 3). **(Round 2)** optional `replyTo` field (message id), validated before uploading. |
+| POST | `/messages/:conversationId/media` | multipart `file` + `duration`; creates the message and broadcasts it (Phase 3). **(Round 2)** Optional `replyTo` field (message id), validated before uploading. Optional `caption` (stored in `text`). Accepts the document whitelist in §8.6; documents become `messageType: 'file'` with `fileName`, `fileSize` and `mimeType`. |
 | PATCH | `/messages/:conversationId/:messageId` | **(Round 2)** `{ text }`. Sender only, text messages only, within **15 min**, 1–4000 chars. Sets `editedAt` → `{ message }`, broadcasts `message_updated`. 403 outside the window or for someone else's message. |
 | DELETE | `/messages/:conversationId/:messageId?scope=everyone\|me` | **(Round 2)** `everyone`: sender only, within **1 h**. Clears content, unpins it (and emits `message_unpinned`), deletes the Cloudinary file best-effort → `{ message }` (tombstone), broadcasts `message_updated`. `me`: any member → `{ messageId, hidden: true }`, and only the user's own tabs are told. Repeating a delete is harmless. |
 
@@ -234,6 +234,17 @@ Password: minimum 8 characters. Email normalised to lowercase.
 4. Passwords: bcrypt, cost 10–12. Rate-limit `/auth/*`.
 5. Validate every input on the server: ObjectIds via `isValidId`, string lengths, message text 1–4000 chars after trimming, escape user input before using it in a regex.
 6. Uploads: whitelist MIME types (audio/webm, audio/ogg, audio/mpeg, audio/mp4, image/jpeg, image/png, image/webp), size limits (voice ≤ 5 MB, images ≤ 5 MB), never trust the file extension, upload to Cloudinary from the server only.
+   **(Round 2)** Also allowed in chat:
+   - `image/gif` (≤ 5 MB, `GIF87a`/`GIF89a` magic bytes).
+   - Documents (≤ 10 MB):
+     - **PDF:** must start with `%PDF-`.
+     - **docx / xlsx / pptx:** `PK\x03\x04` signature, and the archive must contain `[Content_Types].xml` plus `word/`, `xl/` or `ppt/` respectively.
+     - **.txt:** valid UTF-8 with no NUL bytes.
+
+     A document's declared MIME type **and** its extension must match.
+   - Everything else is rejected with 400, including executables, scripts, HTML, SVG and arbitrary ZIPs.
+
+   Documents are stored as Cloudinary `raw` files. `fileName` is sanitised: path parts and control characters are stripped and it's capped at 120 characters. An unreadable multipart body is a 400.
 7. All secrets live in `server/.env`. `.env` is gitignored; `.env.example` is committed with placeholders. The client never holds an API key (Gemini or Cloudinary).
 8. CORS and Socket.IO only accept origins listed in `CLIENT_URL`.
 

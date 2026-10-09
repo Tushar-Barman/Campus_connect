@@ -327,6 +327,79 @@ async function phase4({ A, B }) {
   return { D };
 }
 
+// ── Phase 5: files and documents ─────────────────────────────
+async function phase5({ A, B, sB, privId }) {
+  section('Phase 5 · file and document sharing');
+  const upload = (bytes, name, type, extra = {}) => {
+    const form = new FormData();
+    form.append('file', new Blob([bytes], { type }), name);
+    for (const [k, v] of Object.entries(extra)) form.append(k, v);
+    return call('POST', `/messages/${privId}/media`, { token: A.token, form });
+  };
+  const docx = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from('....[Content_Types].xml....word/document.xml....', 'latin1')]);
+  const pdf = Buffer.from('%PDF-1.4\n1 0 obj << >> endobj\ntrailer << >>\n%%EOF\n', 'latin1');
+  const exe = Buffer.concat([Buffer.from('MZ', 'latin1'), Buffer.alloc(200, 0x90)]);
+  const plainZip = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from('....photo.jpg....', 'latin1')]);
+  const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+  // Rejected before any upload (no Cloudinary needed).
+  const renamedExe = await upload(exe, 'notes.pdf', 'application/pdf');
+  check('renamed .exe declared as PDF → 400', renamedExe.status === 400, show(renamedExe));
+  const exeType = await upload(exe, 'setup.exe', 'application/x-msdownload');
+  check('.exe → 400', exeType.status === 400, show(exeType));
+  const zipAsDocx = await upload(plainZip, 'report.docx', DOCX);
+  check('arbitrary zip renamed to .docx → 400', zipAsDocx.status === 400, show(zipAsDocx));
+  const zip = await upload(plainZip, 'stuff.zip', 'application/zip');
+  check('.zip → 400', zip.status === 400, show(zip));
+  const svg = await upload(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'), 'x.svg', 'image/svg+xml');
+  const html = await upload(Buffer.from('<html><script>alert(1)</script></html>'), 'x.html', 'text/html');
+  check('.svg and .html → 400', svg.status === 400 && html.status === 400, `${svg.status} ${html.status}`);
+  const binTxt = await upload(Buffer.from([0x68, 0x69, 0x00, 0x01]), 'notes.txt', 'text/plain');
+  const badUtf8 = await upload(Buffer.from([0x68, 0xff, 0xfe, 0x69]), 'notes.txt', 'text/plain');
+  check('.txt with NUL bytes or invalid UTF-8 → 400', binTxt.status === 400 && badUtf8.status === 400, `${binTxt.status} ${badUtf8.status}`);
+  const wrongExt = await upload(pdf, 'notes.txt', 'application/pdf');
+  check('PDF with a non-.pdf name → 400', wrongExt.status === 400, show(wrongExt));
+  const PNG_HEAD = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const bigImage = await upload(Buffer.concat([PNG_HEAD, Buffer.alloc(5 * 1024 * 1024 + 10)]), 'big.png', 'image/png');
+  check('image over 5 MB → 413', bigImage.status === 413, show(bigImage));
+  const hugeDoc = await upload(Buffer.concat([pdf, Buffer.alloc(10 * 1024 * 1024 + 10)]), 'huge.pdf', 'application/pdf');
+  check('document over 10 MB → 413', hugeDoc.status === 413, show(hugeDoc));
+
+  const health = await call('GET', '/health');
+  if (!health.data?.features?.uploads) {
+    skip('real document uploads', 'Cloudinary is not configured');
+    return;
+  }
+
+  // Accepted (uploads to Cloudinary, then cleaned up with delete-for-everyone).
+  const created = [];
+  const malformed = await upload(pdf, 'bad\u0007name.pdf', 'application/pdf');
+  check('malformed multipart (control character in the name) → 400, not 500', malformed.status === 400, show(malformed));
+  const okPdf = await upload(pdf, '../Lab Report: Week 3?.pdf', 'application/pdf', { caption: 'final version' });
+  created.push(okPdf.data?.message?._id);
+  check('PDF accepted as a file message', okPdf.status === 201 && okPdf.data?.message?.messageType === 'file', show(okPdf));
+  check('…with a sanitised name, size, MIME type and caption',
+    okPdf.data?.message?.fileName === 'Lab Report Week 3.pdf' && okPdf.data.message.fileSize === pdf.length &&
+      okPdf.data.message.mimeType === 'application/pdf' && okPdf.data.message.text === 'final version',
+    JSON.stringify(okPdf.data?.message));
+  check('…stored as a Cloudinary raw file', /\/raw\/upload\/.+\.pdf$/.test(okPdf.data?.message?.mediaUrl || ''), okPdf.data?.message?.mediaUrl);
+  const live = await waitFor(sB.events, 'new_message', (p) => p?.message?._id === okPdf.data?.message?._id);
+  check('…and reaches the other user live', live?.message?.fileName === 'Lab Report Week 3.pdf');
+  const okDocx = await upload(docx, 'essay.docx', DOCX);
+  created.push(okDocx.data?.message?._id);
+  check('.docx (zip with [Content_Types].xml + word/) accepted', okDocx.status === 201 && okDocx.data?.message?.fileName === 'essay.docx', show(okDocx));
+  const okTxt = await upload(Buffer.from('notes ✓ नमस्ते\n', 'utf8'), 'notes.txt', 'text/plain');
+  created.push(okTxt.data?.message?._id);
+  check('UTF-8 .txt accepted', okTxt.status === 201 && okTxt.data?.message?.mimeType === 'text/plain', show(okTxt));
+  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  const okGif = await upload(gif, 'wave.gif', 'image/gif', { caption: 'hi!' });
+  created.push(okGif.data?.message?._id);
+  check('GIF accepted as an image with a caption', okGif.status === 201 && okGif.data?.message?.messageType === 'image' && okGif.data.message.text === 'hi!', show(okGif));
+
+  for (const id of created.filter(Boolean)) await call('DELETE', `/messages/${privId}/${id}?scope=everyone`, { token: A.token });
+  void B;
+}
+
 async function main() {
   console.log(`\nCampusConnect Round 2 smoke test → ${BASE}`);
   try {
@@ -351,6 +424,7 @@ async function main() {
     await phase2(ctx);
     await phase3(ctx);
     Object.assign(ctx, await phase4(ctx));
+    await phase5(ctx);
   } finally {
     [sA, sB, sC].forEach((s) => s.socket.close());
     // Every user this run created, including ones made inside a phase.

@@ -69,3 +69,57 @@ export async function resizeImage(file, maxSize = 512) {
     return file;
   }
 }
+
+// ── Round 2: attachments (photos + documents) ──────────────────
+
+export const GIF_TYPE = 'image/gif';
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+// MIME → allowed extension + label. Mirrors server/src/services/media.js; the server re-checks content.
+export const DOCUMENT_TYPES = {
+  'application/pdf': { ext: 'pdf', label: 'PDF' },
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { ext: 'docx', label: 'Word' },
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { ext: 'xlsx', label: 'Excel' },
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': { ext: 'pptx', label: 'PowerPoint' },
+  'text/plain': { ext: 'txt', label: 'Text' },
+};
+
+const EXT_TO_DOCUMENT = Object.fromEntries(Object.entries(DOCUMENT_TYPES).map(([mime, { ext }]) => [ext, mime]));
+
+/** For <input accept>. */
+export const ATTACH_ACCEPT = [...IMAGE_TYPES, GIF_TYPE, ...Object.keys(DOCUMENT_TYPES), '.pdf', '.docx', '.xlsx', '.pptx', '.txt'].join(',');
+
+const extOf = (name = '') => (/\.([a-z0-9]{1,8})$/i.exec(name)?.[1] || '').toLowerCase();
+
+/**
+ * Checks a picked/dropped/pasted file. Some systems report Office files with an empty
+ * type; then the extension decides the MIME type we send.
+ * → { kind: 'image' | 'file', mime } or { error }
+ */
+export function classifyAttachment(file) {
+  if (!file) return { error: 'Choose a file' };
+  const type = baseMime(file.type);
+  if (IMAGE_TYPES.includes(type) || type === GIF_TYPE) {
+    if (file.size > MAX_IMAGE_BYTES) return { error: `Photo is ${mb(file.size)}. The limit is 5 MB.` };
+    return { kind: 'image', mime: type };
+  }
+  const mime = DOCUMENT_TYPES[type] ? type : !type || type === 'application/octet-stream' ? EXT_TO_DOCUMENT[extOf(file.name)] : null;
+  if (!mime) return { error: 'You can share photos (JPG, PNG, WebP, GIF) and PDF, Word, Excel, PowerPoint or .txt files.' };
+  if (extOf(file.name) !== DOCUMENT_TYPES[mime].ext) return { error: `This file should end in .${DOCUMENT_TYPES[mime].ext}` };
+  if (file.size > MAX_DOCUMENT_BYTES) return { error: `File is ${mb(file.size)}. The limit is 10 MB.` };
+  if (file.size === 0) return { error: 'This file is empty' };
+  return { kind: 'file', mime };
+}
+
+/** 1536 → "1.5 KB" */
+export function formatBytes(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 102.4) / 10} KB`;
+  return `${Math.round(n / (1024 * 104.8576)) / 10} MB`;
+}
+
+/** Cloudinary "download as attachment" URL for an image; other URLs are returned unchanged. */
+export function downloadUrl(url) {
+  return typeof url === 'string' && url.includes('/image/upload/') ? url.replace('/image/upload/', '/image/upload/fl_attachment/') : url;
+}

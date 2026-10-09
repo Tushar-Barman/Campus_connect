@@ -20,6 +20,8 @@ import { canDeleteForEveryone, canEdit, isDeleted } from '../../lib/messageRules
 import { useBubbleGestures } from '../../lib/useBubbleGestures.js';
 import { idOf, replySnippet } from '../../lib/conversation.js';
 import VoicePlayer from '../media/VoicePlayer.jsx';
+import FileCard from '../media/FileCard.jsx';
+import ImageLightbox from '../media/ImageLightbox.jsx';
 import MessageText from './MessageText.jsx';
 
 const TICKS = {
@@ -164,13 +166,38 @@ function MessageBody({ message, mine, myId, people }) {
     return <VoicePlayer src={message.mediaUrl} duration={message.duration} mine={mine} />;
   }
   if (message.messageType === 'image' && message.mediaUrl) {
+    return <PhotoBody message={message} mine={mine} myId={myId} people={people} />;
+  }
+  if (message.messageType === 'file') {
     return (
-      <a href={message.mediaUrl} target="_blank" rel="noopener noreferrer" className="-mx-1.5 -mt-0.5 block">
-        <img src={message.mediaUrl} alt="Shared image" loading="lazy" className="max-h-72 rounded-xl object-cover" />
-      </a>
+      <>
+        <FileCard message={message} mine={mine} />
+        {message.text ? <div className="mt-1.5"><MessageText message={message} people={people} myId={myId} mine={mine} /></div> : null}
+      </>
     );
   }
   return <MessageText message={message} people={people} myId={myId} mine={mine} />;
+}
+
+// Round 2: tap to open the lightbox; the caption (if any) sits under the photo.
+function PhotoBody({ message, mine, myId, people }) {
+  const [viewing, setViewing] = useState(false);
+  const saved = Boolean(message._id);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => saved && setViewing(true)}
+        disabled={!saved}
+        className="-mx-1.5 -mt-0.5 block overflow-hidden rounded-xl"
+        aria-label={message.text ? `Open photo: ${message.text}` : 'Open photo'}
+      >
+        <img src={message.mediaUrl} alt={message.text || 'Shared photo'} loading="lazy" className="max-h-72 rounded-xl object-cover" />
+      </button>
+      {message.text ? <div className="mt-1.5"><MessageText message={message} people={people} myId={myId} mine={mine} /></div> : null}
+      {viewing ? <ImageLightbox src={message.mediaUrl} caption={message.text} onClose={() => setViewing(false)} /> : null}
+    </>
+  );
 }
 
 function MessageBubble({

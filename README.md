@@ -64,11 +64,13 @@ Tests (server running): `cd server && npm run smoke:all && npm run smoke:realtim
 | | `JWT_SECRET` | ✅ | ≥ 32 random characters |
 | | `CLIENT_URL` | ✅ | Allowed frontend origin(s), comma-separated |
 | | `JWT_EXPIRES_IN`, `PORT`, `NODE_ENV` | | defaults `7d`, `5000`, `development` |
-| | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | optional | pictures and voice notes |
+| | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | optional | pictures, voice notes, photos and documents |
 | | `GEMINI_API_KEY`, `GEMINI_MODEL` | optional | AI Chat Memory |
 | `client/.env` | `VITE_API_URL` | ✅ | server URL, no `/api` |
 | | `VITE_USE_MOCKS` | | must be `false` outside UI-only development |
 | | `VITE_FEATURE_CHAT_MEMORY` | | `false` hides the Chat Memory button |
+
+> **Cloudinary and PDFs.** Free Cloudinary accounts block delivery of PDF and ZIP files by default. Uploads still succeed, but opening the file returns 401. To allow it, go to **Cloudinary console → Settings → Security** and turn on **"Allow delivery of PDF and ZIP files"**. Until then, the chat shows a short explanation when someone opens a PDF. Word, Excel, PowerPoint and .txt files aren't affected.
 
 ## Repository layout
 

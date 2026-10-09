@@ -225,6 +225,12 @@ export async function createMessage(fields = {}) {
     if (fields.duration !== undefined && fields.duration !== '' && Number.isFinite(seconds) && seconds >= 0) {
       doc.duration = Math.min(Math.round(seconds * 10) / 10, MAX_DURATION_SECONDS);
     }
+    // Round 2: documents. media.js sanitises fileName and checks the type.
+    if (messageType === 'file') {
+      doc.fileName = typeof fields.fileName === 'string' ? fields.fileName.slice(0, 120) : 'file';
+      doc.fileSize = Number.isFinite(fields.fileSize) ? fields.fileSize : undefined;
+      doc.mimeType = typeof fields.mimeType === 'string' ? fields.mimeType.slice(0, 100) : undefined;
+    }
   }
 
   return Message.create(doc);

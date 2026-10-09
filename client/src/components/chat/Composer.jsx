@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, Mic, Pencil, Reply, SendHorizontal, X } from 'lucide-react';
+import { Check, FileUp, Mic, Paperclip, Pencil, Reply, SendHorizontal, X } from 'lucide-react';
 import { useVoiceRecorder } from '@p3/hooks/useVoiceRecorder.js';
 import Button from '../ui/Button.jsx';
 import Avatar from '../ui/Avatar.jsx';
 import { idOf, replySnippet } from '../../lib/conversation.js';
 import { useMentionAutocomplete } from '../../lib/useMentionAutocomplete.js';
+import { ATTACH_ACCEPT } from '../../lib/media.js';
 import { formatDuration } from '../../lib/media.js';
 
 export const MESSAGE_MAX = 4000;
@@ -92,6 +93,82 @@ function MentionList({ mentions }) {
 }
 
 /**
+ * 📎 menu. "Photo or document" opens the file picker; `extraItems` ([{ key, label, Icon, onSelect }])
+ * lets the chat add more (e.g. location sharing).
+ */
+function AttachMenu({ onFiles, extraItems = [] }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => {
+      if (!rootRef.current?.contains(event.target)) setOpen(false);
+    };
+    const onKey = (event) => event.key === 'Escape' && setOpen(false);
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const items = [
+    { key: 'file', label: 'Photo or document', Icon: FileUp, onSelect: () => inputRef.current?.click() },
+    ...extraItems,
+  ];
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ATTACH_ACCEPT}
+        className="hidden"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          if (e.target.files?.length) onFiles(e.target.files);
+          e.target.value = ''; // picking the same file twice still fires change
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Attach"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Attach a photo or file"
+        className="flex h-10 w-10 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+      >
+        <Paperclip className="h-4.5 w-4.5" aria-hidden="true" />
+      </button>
+      {open ? (
+        <div role="menu" className="absolute bottom-12 left-0 z-30 w-56 overflow-hidden rounded-xl border border-border bg-surface py-1 shadow-pop animate-slide-up">
+          {items.map(({ key, label, Icon, onSelect }) => (
+            <button
+              key={key}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onSelect();
+              }}
+              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm hover:bg-surface-muted"
+            >
+              <Icon className="h-4 w-4 text-brand-600" aria-hidden="true" />
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * Text input + voice notes.
  * onInput → P3 useTyping().notifyTyping · onStopTyping → stopTyping · onRecorded → P3 useMessages().sendVoiceNote
  * Round 2: `editing` (a message) switches to edit mode; onSubmitEdit(text) may reject with an axios error.
@@ -109,6 +186,8 @@ export default function Composer({
   onCancelReply,
   myId,
   members = [],
+  onAttachFiles,
+  attachItems,
 }) {
   const [text, setText] = useState('');
   const [shownError, setShownError] = useState('');
@@ -207,6 +286,7 @@ export default function Composer({
         </p>
       ) : null}
       <div className="flex items-end gap-2">
+        {onAttachFiles && !editingId && !isRecording ? <AttachMenu onFiles={onAttachFiles} extraItems={attachItems} /> : null}
         {isRecording ? (
           <RecordingBar elapsedMs={elapsedMs} maxDurationMs={maxDurationMs} />
         ) : (
@@ -244,6 +324,14 @@ export default function Composer({
               onBlur={() => {
                 onStopTyping();
                 mentions.close();
+              }}
+              onPaste={(e) => {
+                // Round 2: paste a screenshot/photo straight into the chat.
+                const files = e.clipboardData?.files;
+                if (onAttachFiles && !editingId && files?.length) {
+                  e.preventDefault();
+                  onAttachFiles(files);
+                }
               }}
               aria-autocomplete={members.length ? 'list' : undefined}
               aria-expanded={members.length ? mentions.open : undefined}
