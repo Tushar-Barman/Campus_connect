@@ -334,6 +334,44 @@ export function useMessages(conversationId, currentUser) {
     [conversationId, replaceSaved, updateFor],
   );
 
+  // Round 2: location sharing over REST. The server broadcasts new_message (and
+  // message_updated for an answered request); the response is applied here too.
+  // All three reject with the axios error so the caller can show it.
+  const addSaved = useCallback(
+    (cid, saved) => updateFor(cid, (list) => upsert(list, confirmed(saved))),
+    [updateFor],
+  );
+
+  // point = { lat, lng, accuracy, label? }; options = { replyTo, respondsTo } (message objects)
+  const sendLocation = useCallback(
+    async (point, { replyTo, respondsTo } = {}) => {
+      const cid = conversationId;
+      const { data } = await api.post(`/messages/${cid}/location`, {
+        ...point,
+        ...(respondsTo?._id ? { respondsTo: String(respondsTo._id) } : replyTo?._id ? { replyTo: String(replyTo._id) } : {}),
+      });
+      addSaved(cid, data.message);
+      return data.message;
+    },
+    [conversationId, addSaved],
+  );
+
+  const requestLocation = useCallback(async () => {
+    const cid = conversationId;
+    const { data } = await api.post(`/messages/${cid}/location-request`);
+    addSaved(cid, data.message);
+    return data.message;
+  }, [conversationId, addSaved]);
+
+  const declineLocationRequest = useCallback(
+    async (messageId) => {
+      const cid = conversationId;
+      await api.post(`/messages/${cid}/location-request/${messageId}/decline`);
+      updateFor(cid, (list) => list.map((m) => (String(m._id) === String(messageId) ? { ...m, requestStatus: 'declined' } : m)));
+    },
+    [conversationId, updateFor],
+  );
+
   const isOpen = (cid) => String(cid) === String(cidRef.current);
 
   useSocketEvent('new_message', ({ message } = {}) => {
@@ -396,6 +434,9 @@ export function useMessages(conversationId, currentUser) {
     discardMessage,
     editMessage,
     deleteMessage,
+    sendLocation,
+    requestLocation,
+    declineLocationRequest,
     loadOlder,
     reload: loadLatest,
   };

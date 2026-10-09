@@ -70,5 +70,6 @@ const byId = new Map(CAMPUSES.map((c) => [c.id, c]));
 export const getCampus = (id) => (typeof id === 'string' ? byId.get(id) ?? null : null);
 export const isCampusId = (id) => Boolean(getCampus(id));
 
-/** What GET /api/campuses returns (no geometry: location checks happen on the server). */
-export const publicCampus = ({ id, name, shortName, city }) => ({ id, name, shortName, city });
+/** What GET /api/campuses returns. Geometry is public map data; the client uses it only for the
+ * "On campus" hint before sending. The server recomputes onCampus itself. */
+export const publicCampus = ({ id, name, shortName, city, center, radiusMeters }) => ({ id, name, shortName, city, center, radiusMeters });

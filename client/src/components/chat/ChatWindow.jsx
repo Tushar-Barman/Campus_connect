@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileUp, MessageSquareOff } from 'lucide-react';
+import { FileUp, LocateFixed, MapPin, MessageSquareOff } from 'lucide-react';
 import { useMessages } from '@p3/hooks/useMessages.js';
 import { usePinnedMessages } from '@p3/hooks/usePinnedMessages.js';
 import { useTyping } from '@p3/hooks/useTyping.js';
@@ -13,6 +13,8 @@ import GroupInfoPanel from '../group/GroupInfoPanel.jsx';
 import ContactPanel from '../group/ContactPanel.jsx';
 import ChatMemoryPanel from '../memory/ChatMemoryPanel.jsx';
 import MessageInfoPanel from './MessageInfoPanel.jsx';
+import LocationShareSheet from '../location/LocationShareSheet.jsx';
+import { findCampus, useCampuses } from '../../lib/campuses.js';
 import ConfirmDialog from '../ui/ConfirmDialog.jsx';
 import AttachSheet from '../media/AttachSheet.jsx';
 import { classifyAttachment } from '../../lib/media.js';
@@ -40,6 +42,10 @@ export default function ChatWindow({ conversation }) {
 
   const [panel, setPanel] = useState(null); // 'info' | 'memory' | 'message' | null
   const [infoId, setInfoId] = useState(null); // message shown in the Message info drawer
+  // Round 2: location sheet. { respondsTo?: request message } while open, null when closed.
+  const [locationSheet, setLocationSheet] = useState(null);
+  const { campuses } = useCampuses();
+  const myCampus = findCampus(campuses, user?.campus);
   const closePanel = useCallback(() => setPanel(null), []);
   const [highlightId, setHighlightId] = useState(null);
   const [notice, setNotice] = useState('');
@@ -191,6 +197,31 @@ export default function ChatWindow({ conversation }) {
       }
     : {};
 
+  // Round 2: location sharing (hidden in mock mode, where these don't exist).
+  const canLocate = Boolean(chat.sendLocation);
+  const attachItems = canLocate
+    ? [
+        { key: 'location', label: 'Share my location', Icon: MapPin, onSelect: () => setLocationSheet({}) },
+        {
+          key: 'ask-location',
+          label: 'Ask for location',
+          Icon: LocateFixed,
+          onSelect: () => chat.requestLocation().catch((err) => flash(getErrorMessage(err, 'Could not send the request.'))),
+        },
+      ]
+    : undefined;
+  const sendLocation = (point) => {
+    const respondsTo = locationSheet?.respondsTo;
+    const replyTo = respondsTo ? undefined : replyingTo;
+    return chat.sendLocation(point, { respondsTo, replyTo }).then(() => {
+      if (!respondsTo) setReplyingTo(null);
+    });
+  };
+  const onLocationShare = useCallback((request) => setLocationSheet({ respondsTo: request }), []);
+  const declineRef = useRef(chat.declineLocationRequest);
+  declineRef.current = chat.declineLocationRequest;
+  const onLocationDecline = useCallback((request) => declineRef.current(request._id), []);
+
   const sendVoice = (recording) => {
     chat.sendVoiceNote(recording, { replyTo: replyingTo });
     setReplyingTo(null);
@@ -257,6 +288,8 @@ export default function ChatWindow({ conversation }) {
         onReply={startReply}
         onJump={jumpTo}
         onInfo={showInfo}
+        onLocationShare={canLocate ? onLocationShare : undefined}
+        onLocationDecline={canLocate ? onLocationDecline : undefined}
       />
 
       <Composer
@@ -272,6 +305,20 @@ export default function ChatWindow({ conversation }) {
         myId={user?._id}
         members={members}
         onAttachFiles={canAttach ? pickFiles : undefined}
+        attachItems={attachItems}
+      />
+
+      <LocationShareSheet
+        open={Boolean(locationSheet)}
+        onClose={() => setLocationSheet(null)}
+        onSend={sendLocation}
+        campus={myCampus}
+        title={locationSheet?.respondsTo ? 'Share your location' : 'Send your location'}
+        intro={
+          locationSheet?.respondsTo
+            ? `${(locationSheet.respondsTo.senderId?.name || 'Someone').split(' ')[0]} asked where you are.`
+            : undefined
+        }
       />
 
       <AttachSheet attachment={attachment} onSend={sendAttachment} onCancel={() => setAttachment(null)} />

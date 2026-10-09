@@ -35,3 +35,13 @@ export const aiLimiter = rateLimit({
   legacyHeaders: false,
   message: tooMany('Chat Memory requests'),
 });
+
+/** Round 2: location shares and requests: 10 per user per minute. */
+export const locationLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  keyGenerator: perUser,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: tooMany('location shares'),
+});

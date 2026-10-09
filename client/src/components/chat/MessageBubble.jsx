@@ -23,6 +23,7 @@ import { idOf, replySnippet } from '../../lib/conversation.js';
 import VoicePlayer from '../media/VoicePlayer.jsx';
 import FileCard from '../media/FileCard.jsx';
 import ImageLightbox from '../media/ImageLightbox.jsx';
+import { LocationBubble, LocationRequestCard } from '../location/LocationMessage.jsx';
 import MessageText from './MessageText.jsx';
 
 const TICKS = {
@@ -157,7 +158,7 @@ function ReplyQuote({ quote, mine, myId, onJump }) {
   );
 }
 
-function MessageBody({ message, mine, myId, people }) {
+function MessageBody({ message, mine, myId, people, location }) {
   if (isDeleted(message)) {
     return (
       <p className={`flex items-center gap-1.5 italic ${mine ? 'text-brand-100' : 'text-ink-subtle'}`}>
@@ -171,6 +172,18 @@ function MessageBody({ message, mine, myId, people }) {
   }
   if (message.messageType === 'image' && message.mediaUrl) {
     return <PhotoBody message={message} mine={mine} myId={myId} people={people} />;
+  }
+  if (message.messageType === 'location') return <LocationBubble message={message} mine={mine} />;
+  if (message.messageType === 'location_request') {
+    return (
+      <LocationRequestCard
+        message={message}
+        mine={mine}
+        onShare={location.onShare}
+        onDecline={location.onDecline}
+        onJump={location.onJump}
+      />
+    );
   }
   if (message.messageType === 'file') {
     return (
@@ -222,6 +235,8 @@ function MessageBubble({
   onReply,
   onJump,
   onInfo,
+  onLocationShare,
+  onLocationDecline,
   people,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -258,7 +273,13 @@ function MessageBubble({
         >
           {showSender ? <p className="mb-0.5 text-xs font-semibold text-brand-700">{message.senderId?.name || 'Deleted user'}</p> : null}
           {message.replyTo !== undefined && !deleted ? <ReplyQuote quote={message.replyTo} mine={mine} myId={myId} onJump={onJump} /> : null}
-          <MessageBody message={message} mine={mine} myId={myId} people={people} />
+          <MessageBody
+            message={message}
+            mine={mine}
+            myId={myId}
+            people={people}
+            location={{ onShare: onLocationShare, onDecline: onLocationDecline, onJump }}
+          />
           {status === 'uploading' ? (
             <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/25" role="progressbar" aria-label="Uploading" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((message.progress || 0) * 100)}>
               <div className="h-full bg-white transition-[width] duration-200" style={{ width: `${Math.round((message.progress || 0) * 100)}%` }} />

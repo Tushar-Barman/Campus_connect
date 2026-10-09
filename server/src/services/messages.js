@@ -226,6 +226,12 @@ export async function createMessage(fields = {}) {
 
   if (messageType === 'text') {
     doc.text = cleanText(fields.text, { required: true });
+  } else if (messageType === 'location') {
+    // Round 2: services/location.js validates the coordinates and computes onCampus.
+    if (!fields.location) throw new HttpError(400, 'Location is required');
+    doc.location = fields.location;
+  } else if (messageType === 'location_request') {
+    doc.requestStatus = 'pending';
   } else {
     if (typeof fields.mediaUrl !== 'string' || !fields.mediaUrl.startsWith('https://')) {
       throw new HttpError(400, 'Media messages need an https mediaUrl');

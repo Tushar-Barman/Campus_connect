@@ -139,7 +139,7 @@ Password: minimum 8 characters. Email normalised to lowercase.
 ### Campuses (Round 2)
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/campuses` | **Public** (no token). → `{ campuses: [{ id, name, shortName, city }] }`. The list lives in `server/src/config/campuses.js`; centres and radii stay on the server. |
+| GET | `/campuses` | **Public** (no token). → `{ campuses: [{ id, name, shortName, city, center: { lat, lng }, radiusMeters }] }`. The list (all 23 IITs) lives in `server/src/config/campuses.js`. The geometry is only for the client's "On campus" hint; the server recomputes `onCampus` itself. |
 
 ### Users
 | Method | Path | Notes |
@@ -173,6 +173,20 @@ Password: minimum 8 characters. Email normalised to lowercase.
 | POST | `/messages/:conversationId/media` | multipart `file` + `duration`; creates the message and broadcasts it (Phase 3). **(Round 2)** Optional `replyTo` field (message id), validated before uploading. Optional `caption` (stored in `text`). Accepts the document whitelist in §8.6; documents become `messageType: 'file'` with `fileName`, `fileSize` and `mimeType`. |
 | PATCH | `/messages/:conversationId/:messageId` | **(Round 2)** `{ text }`. Sender only, text messages only, within **15 min**, 1–4000 chars. Sets `editedAt` → `{ message }`, broadcasts `message_updated`. 403 outside the window or for someone else's message. |
 | DELETE | `/messages/:conversationId/:messageId?scope=everyone\|me` | **(Round 2)** `everyone`: sender only, within **1 h**. Clears content, unpins it (and emits `message_unpinned`), deletes the Cloudinary file best-effort → `{ message }` (tombstone), broadcasts `message_updated`. `me`: any member → `{ messageId, hidden: true }`, and only the user's own tabs are told. Repeating a delete is harmless. |
+
+### Location sharing (Round 2)
+Nothing is ever shared automatically: each location message comes from an explicit request by its sender. All three routes are rate-limited to **10 per user per minute** (shared).
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/messages/:conversationId/location` | `{ lat, lng, accuracy, label?, replyTo?, respondsTo? }` → `201 { message }` (`messageType: 'location'`). `lat` must be within ±90, `lng` within ±180, `accuracy` 0–5000 m, `label` ≤ 60 chars. `location.onCampus` and `location.campus` are **computed on the server** from the sender's campus (haversine); client values are ignored. `respondsTo` answers a `location_request`: the location becomes a reply to it, and the request gets `requestStatus: 'accepted'` and `respondedWith`, followed by `message_updated`. |
+| POST | `/messages/:conversationId/location-request` | → `201 { message }` (`messageType: 'location_request'`, `requestStatus: 'pending'`). |
+| POST | `/messages/:conversationId/location-request/:messageId/decline` | → `{ messageId, requestStatus: 'declined' }`, plus `message_updated`. |
+
+Rules for answering a request:
+- Only someone other than the requester may answer: the requester gets 403. In groups, any other member may answer.
+- The first answer wins, using an atomic update; later answers get 409.
+- Requests expire **10 minutes** after they're sent. Expiry is computed on read; a late answer gets 409 `This request has expired`.
 
 ### AI
 | POST | `/ai/summarize/:conversationId` | → `{ summary, keyDecisions[], actionItems[], importantDates[] }` (Phase 4) |

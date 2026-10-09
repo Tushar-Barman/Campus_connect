@@ -292,7 +292,7 @@ async function phase4({ A, B }) {
   const list = await call('GET', '/campuses');
   const mandi = list.data?.campuses?.find((c) => c.id === 'iit-mandi');
   check('GET /campuses is public and lists IIT Mandi', list.status === 200 && mandi?.shortName === 'IIT Mandi' && list.data.campuses.length >= 3, show(list));
-  check('campus list has no geometry', mandi && !('center' in mandi) && !('radiusMeters' in mandi), JSON.stringify(mandi));
+  check('campus list includes centre and radius (for the on-campus hint)', mandi?.center?.lat > 31 && mandi.radiusMeters > 0, JSON.stringify(mandi));
 
   const base = { name: 'No Campus', password: PASSWORD };
   const noCampus = await call('POST', '/auth/register', { body: { ...base, email: `smoke-r2-${stamp}-nc@test.local` } });
@@ -449,6 +449,74 @@ async function phase6({ A, B, C, sA, sB, sC }) {
   await call('PUT', '/users/settings', { token: C.token, body: { readReceipts: true } });
 }
 
+// ── Phase 7: location sharing ────────────────────────────────
+async function phase7({ A, B, C, sA, sB, privId }) {
+  section('Phase 7 · location sharing');
+  const ON_CAMPUS = { lat: 31.7749, lng: 76.9862, accuracy: 12 }; // inside IIT Mandi
+  const MANDI_TOWN = { lat: 31.7084, lng: 76.9316, accuracy: 30 }; // ~8.6 km away
+  const share = (token, cid, body) => call('POST', `/messages/${cid}/location`, { token, body });
+
+  const bad = await Promise.all([
+    share(A.token, privId, { ...ON_CAMPUS, lat: 91 }),
+    share(A.token, privId, { ...ON_CAMPUS, lng: '76.9' }),
+    share(A.token, privId, { ...ON_CAMPUS, accuracy: 6000 }),
+    share(A.token, privId, { ...ON_CAMPUS, label: 'x'.repeat(61) }),
+  ]);
+  check('out-of-range lat / string lng / accuracy > 5000 / label > 60 → 400', bad.every((r) => r.status === 400), bad.map((r) => r.status).join(' '));
+  const outsider = await share(C.token, privId, ON_CAMPUS);
+  check('non-member → 404', outsider.status === 404, show(outsider));
+
+  const here = await share(A.token, privId, { ...ON_CAMPUS, label: '  Library, 2nd floor ' });
+  check('on-campus point → onCampus true with the campus id', here.status === 201 && here.data?.message?.location?.onCampus === true && here.data.message.location.campus === 'iit-mandi' && here.data.message.location.label === 'Library, 2nd floor', show(here));
+  const away = await share(A.token, privId, { ...MANDI_TOWN, onCampus: true, campus: 'iit-mandi' });
+  check("off-campus point → onCampus false (the client's claim is ignored)", away.status === 201 && away.data?.message?.location?.onCampus === false, show(away));
+  const live = await waitFor(sB.events, 'new_message', (p) => p?.message?._id === here.data?.message?._id);
+  check('location reaches the other user live', live?.message?.messageType === 'location');
+
+  // Request → decline
+  const req1 = await call('POST', `/messages/${privId}/location-request`, { token: A.token });
+  check('location request created as pending', req1.status === 201 && req1.data?.message?.messageType === 'location_request' && req1.data.message.requestStatus === 'pending', show(req1));
+  const r1 = req1.data?.message?._id;
+  const own = await share(A.token, privId, { ...ON_CAMPUS, respondsTo: r1 });
+  check('requester cannot answer their own request → 403', own.status === 403, show(own));
+  sA.events.length = 0;
+  const dec = await call('POST', `/messages/${privId}/location-request/${r1}/decline`, { token: B.token });
+  check('recipient declines → declined', dec.status === 200 && dec.data?.requestStatus === 'declined', show(dec));
+  const decEvent = await waitFor(sA.events, 'message_updated', (p) => p?.message?._id === r1);
+  check('requester gets message_updated (declined)', decEvent?.message?.requestStatus === 'declined', JSON.stringify(decEvent));
+  const late = await share(B.token, privId, { ...ON_CAMPUS, respondsTo: r1 });
+  check('answering a declined request → 409', late.status === 409, show(late));
+
+  // Request → share
+  const r2 = (await call('POST', `/messages/${privId}/location-request`, { token: A.token })).data?.message?._id;
+  sA.events.length = 0;
+  const answer = await share(B.token, privId, { ...ON_CAMPUS, respondsTo: r2 });
+  check('recipient shares in reply → location message replying to the request', answer.status === 201 && answer.data?.message?.replyTo?._id === r2, show(answer));
+  const accEvent = await waitFor(sA.events, 'message_updated', (p) => p?.message?._id === r2);
+  check('request becomes accepted with respondedWith', accEvent?.message?.requestStatus === 'accepted' && String(accEvent.message.respondedWith) === answer.data?.message?._id, JSON.stringify(accEvent));
+
+  // Groups: any member except the requester; the first answer wins.
+  const group = await call('POST', '/conversations/group', { token: A.token, body: { name: 'Find me', memberIds: [B.id, C.id] } });
+  const gid = group.data?.conversation?._id;
+  const r3 = (await call('POST', `/messages/${gid}/location-request`, { token: A.token })).data?.message?._id;
+  const race = await Promise.all([share(B.token, gid, { ...ON_CAMPUS, respondsTo: r3 }), share(C.token, gid, { ...MANDI_TOWN, respondsTo: r3 })]);
+  const codes = race.map((r) => r.status).sort();
+  check('two members answer at once → exactly one wins (201 + 409)', codes[0] === 201 && codes[1] === 409, codes.join(' '));
+
+  // Expiry is computed on read. (B asks here: A's 10-per-minute budget is nearly used up.)
+  const r4 = (await call('POST', `/messages/${gid}/location-request`, { token: B.token })).data?.message?._id;
+  await Message.collection.updateOne({ _id: new mongoose.Types.ObjectId(r4) }, { $set: { createdAt: new Date(Date.now() - 11 * 60 * 1000) } });
+  const expired = await share(C.token, gid, { ...ON_CAMPUS, respondsTo: r4 });
+  check('answering after 10 minutes → 409 expired', expired.status === 409 && /expired/i.test(expired.data?.error), show(expired));
+  const hist = await call('GET', `/messages/${gid}`, { token: C.token });
+  check('…and it reads as expired', hist.data?.messages?.find((m) => m._id === r4)?.requestStatus === 'expired');
+
+  // Rate limit: 10 per user per minute (A has used most of it above).
+  let limited = false;
+  for (let i = 0; i < 12 && !limited; i += 1) limited = (await share(A.token, privId, ON_CAMPUS)).status === 429;
+  check('location rate limit → 429', limited);
+}
+
 async function main() {
   console.log(`\nCampusConnect Round 2 smoke test → ${BASE}`);
   try {
@@ -475,6 +543,7 @@ async function main() {
     Object.assign(ctx, await phase4(ctx));
     await phase5(ctx);
     await phase6(ctx);
+    await phase7(ctx);
   } finally {
     [sA, sB, sC].forEach((s) => s.socket.close());
     // Every user this run created, including ones made inside a phase.

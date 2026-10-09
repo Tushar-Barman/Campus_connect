@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
-import { uploadLimiter } from '../middleware/rateLimit.js';
+import { locationLimiter, uploadLimiter } from '../middleware/rateLimit.js';
 import {
   notifyMessageHidden,
   notifyMessagePinned,
@@ -11,6 +11,7 @@ import { mediaUpload, createMediaMessage } from '../services/media.js'; // P3
 import { asyncHandler } from '../utils/http.js';
 import { invalidateChatMemory } from '../services/aiMemory.js'; // P3
 import { destroyMediaUrl } from '../services/storage.js';
+import { declineLocationRequest, requestLocation, shareLocation } from '../services/location.js';
 import {
   buildViewerContext,
   deleteMessage,
@@ -84,6 +85,38 @@ router.post(
       caption: req.body?.caption, // Round 2: photos and documents
     });
     res.status(201).json({ message });
+  })
+);
+
+// ── Round 2: location sharing ──────────────────────────────
+
+// POST /api/messages/:conversationId/location  { lat, lng, accuracy, label?, replyTo?, respondsTo? } → 201 { message }
+// onCampus is computed on the server from the sender's campus. 10 per user per minute.
+router.post(
+  '/:conversationId/location',
+  locationLimiter,
+  asyncHandler(async (req, res) => {
+    const message = await shareLocation({ conversationId: req.params.conversationId, userId: req.userId, body: req.body || {} });
+    res.status(201).json({ message });
+  })
+);
+
+// POST /api/messages/:conversationId/location-request → 201 { message }  (a location_request, pending)
+router.post(
+  '/:conversationId/location-request',
+  locationLimiter,
+  asyncHandler(async (req, res) => {
+    const message = await requestLocation({ conversationId: req.params.conversationId, userId: req.userId });
+    res.status(201).json({ message });
+  })
+);
+
+// POST /api/messages/:conversationId/location-request/:messageId/decline → { messageId, requestStatus: 'declined' }
+router.post(
+  '/:conversationId/location-request/:messageId/decline',
+  asyncHandler(async (req, res) => {
+    const { conversationId, messageId } = req.params;
+    res.json(await declineLocationRequest({ conversationId, messageId, userId: req.userId }));
   })
 );
 

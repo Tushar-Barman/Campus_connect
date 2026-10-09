@@ -24,7 +24,7 @@ function LoadingBubbles() {
 }
 
 /** `chat` is the object returned by P3's useMessages(conversationId, currentUser). */
-export default function MessageList({ conversation, chat, myId, typingUsers, pinnedIds, highlightId, onPin, onUnpin, onEdit, onDelete, onReply, onJump, onInfo }) {
+export default function MessageList({ conversation, chat, myId, typingUsers, pinnedIds, highlightId, onPin, onUnpin, onEdit, onDelete, onReply, onJump, onInfo, onLocationShare, onLocationDecline }) {
   const scrollRef = useRef(null);
   const atBottomRef = useRef(true);
   const prevRef = useRef({ first: null, last: null, length: 0, scrollHeight: 0 });
@@ -133,6 +133,8 @@ export default function MessageList({ conversation, chat, myId, typingUsers, pin
                 onReply={onReply}
                 onJump={onJump}
                 onInfo={onInfo}
+                onLocationShare={onLocationShare}
+                onLocationDecline={onLocationDecline}
                 people={people}
               />
             </Fragment>
