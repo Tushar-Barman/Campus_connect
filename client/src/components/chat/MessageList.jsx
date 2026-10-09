@@ -6,6 +6,7 @@ import TypingIndicator from './TypingIndicator.jsx';
 import { EmptyState, ErrorState, Skeleton } from '../ui/Feedback.jsx';
 import { formatDayLabel, isSameDay } from '../../lib/format.js';
 import { errorText, idOf, typingLabel } from '../../lib/conversation.js';
+import { wallpaperLayer } from '../../lib/wallpapers.js';
 
 const NEAR_BOTTOM_PX = 120;
 const LOAD_OLDER_PX = 80;
@@ -144,12 +145,16 @@ export default function MessageList({ conversation, chat, myId, typingUsers, pin
     );
   }
 
+  // Round 2: this user's wallpaper for the chat; without one, the default topographic canvas.
+  const wall = wallpaperLayer(conversation.background);
+
   return (
-    <div className="relative min-h-0 flex-1">
+    <div className={`relative min-h-0 flex-1 ${wall ? '' : 'cc-topo'}`}>
+      {wall ? <div className={wall.className} style={wall.style} aria-hidden="true" /> : null}
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="h-full overflow-y-auto px-3 pb-3 sm:px-6"
+        className="relative h-full overflow-y-auto px-3 pb-3 sm:px-6"
         role="log"
         aria-live="polite"
         aria-relevant="additions"

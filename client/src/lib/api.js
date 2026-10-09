@@ -110,6 +110,8 @@ export const conversationsApi = {
   openPrivate: (userId) => data(api.post('/conversations', { userId })),
   star: (id) => data(api.post(`/conversations/${id}/star`)),
   unstar: (id) => data(api.delete(`/conversations/${id}/star`)),
+  // Round 2: this user's wallpaper for one chat (preset id, #rrggbb or '')
+  setBackground: (id, background) => data(api.put(`/conversations/${id}/background`, { background })),
   createGroup: ({ name, memberIds }) => data(api.post('/conversations/group', { name, memberIds })),
   updateGroup: (id, body) => data(api.put(`/conversations/${id}`, body)),
   addMember: (id, userId) => data(api.post(`/conversations/${id}/members`, { userId })),

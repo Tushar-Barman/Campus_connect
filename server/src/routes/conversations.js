@@ -8,6 +8,7 @@ import {
   findOrCreatePrivate,
   getConversationDetails,
   listConversationsForUser,
+  setBackground,
   setStarred,
 } from '../services/conversations.js';
 import { addMember, createGroup, loadGroupAsAdmin, removeMember, updateGroup } from '../services/groups.js';
@@ -54,6 +55,15 @@ router.delete(
   '/:id/star',
   asyncHandler(async (req, res) => {
     res.json(await setStarred(req.params.id, req.userId, false));
+  })
+);
+
+// PUT /api/conversations/:id/background  { background } → { conversationId, background }
+// Round 2: this user's wallpaper for this chat (preset id, #rrggbb, or "" to reset).
+router.put(
+  '/:id/background',
+  asyncHandler(async (req, res) => {
+    res.json(await setBackground(req.params.id, req.userId, req.body?.background));
   })
 );
 

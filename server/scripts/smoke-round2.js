@@ -657,6 +657,39 @@ async function phase9({ B, sB }) {
   [sP, sQ2].forEach((s) => s.socket.close());
 }
 
+// ── Phase 10: appearance settings and chat wallpapers ────────
+async function phase10({ A, B, C, sA, sB, privId }) {
+  section('Phase 10 · appearance settings and wallpapers');
+  const look = await call('PUT', '/users/settings', { token: A.token, body: { theme: 'dark', accent: 'rose', density: 'compact', fontScale: 'lg', bubbleStyle: 'sharp' } });
+  check('appearance settings save together', look.status === 200 && look.data?.settings?.theme === 'dark' && look.data.settings.bubbleStyle === 'sharp' && look.data.settings.fontScale === 'lg', show(look));
+  const badLook = await call('PUT', '/users/settings', { token: A.token, body: { density: 'cozy' } });
+  check('unknown density → 400', badLook.status === 400, show(badLook));
+
+  sA.events.length = 0;
+  sB.events.length = 0;
+  const set = await call('PUT', `/conversations/${privId}/background`, { token: A.token, body: { background: 'contour' } });
+  check('preset wallpaper saved', set.status === 200 && set.data?.background === 'contour', show(set));
+  const own = await waitFor(sA.events, 'conversation_background', (p) => p?.conversationId === privId);
+  await sleep(200);
+  check("only the user's own tabs are told", own?.background === 'contour' && !sB.events.some((e) => e.event === 'conversation_background'));
+  const listA = await call('GET', '/conversations', { token: A.token });
+  const listB = await call('GET', '/conversations', { token: B.token });
+  check("it's per user: A sees it, B doesn't", listA.data?.conversations?.find((c) => c._id === privId)?.background === 'contour' && listB.data?.conversations?.find((c) => c._id === privId)?.background === '');
+  const hex = await call('PUT', `/conversations/${privId}/background`, { token: A.token, body: { background: '#1A2B3C' } });
+  check('#rrggbb colour accepted (normalised)', hex.status === 200 && hex.data?.background === '#1a2b3c', show(hex));
+  const bad = await Promise.all(
+    ['red', '#fff', 'url(https://evil.example/x.png)', '#000000;}body{display:none', 'mist ', 42].map((background) =>
+      call('PUT', `/conversations/${privId}/background`, { token: A.token, body: { background } })
+    )
+  );
+  check('anything else → 400 (names, short hex, url(), CSS injection, numbers)', bad.every((r) => r.status === 400), bad.map((r) => r.status).join(' '));
+  const outsider = await call('PUT', `/conversations/${privId}/background`, { token: C.token, body: { background: 'mist' } });
+  check('non-member → 404', outsider.status === 404, show(outsider));
+  const reset = await call('PUT', `/conversations/${privId}/background`, { token: A.token, body: { background: '' } });
+  const after = await call('GET', `/conversations/${privId}`, { token: A.token });
+  check('"" resets it', reset.status === 200 && after.data?.conversation?.background === '', show(after));
+}
+
 async function main() {
   console.log(`\nCampusConnect Round 2 smoke test → ${BASE}`);
   try {
@@ -686,6 +719,7 @@ async function main() {
     await phase7(ctx);
     await phase8(ctx);
     await phase9(ctx);
+    await phase10(ctx);
   } finally {
     [sA, sB, sC].forEach((s) => s.socket.close());
     // Every user this run created, including ones made inside a phase.

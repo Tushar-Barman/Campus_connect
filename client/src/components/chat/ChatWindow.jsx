@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Ban, FileUp, LocateFixed, MapPin, MessageSquareOff } from 'lucide-react';
+import { Ban, FileUp, Image as ImageIcon, LocateFixed, MapPin, MessageSquareOff } from 'lucide-react';
 import { useMessages } from '@p3/hooks/useMessages.js';
 import { usePinnedMessages } from '@p3/hooks/usePinnedMessages.js';
 import { useTyping } from '@p3/hooks/useTyping.js';
@@ -13,6 +13,7 @@ import GroupInfoPanel from '../group/GroupInfoPanel.jsx';
 import ContactPanel from '../group/ContactPanel.jsx';
 import ChatMemoryPanel from '../memory/ChatMemoryPanel.jsx';
 import MessageInfoPanel from './MessageInfoPanel.jsx';
+import WallpaperPicker from './WallpaperPicker.jsx';
 import LocationShareSheet from '../location/LocationShareSheet.jsx';
 import { findCampus, useCampuses } from '../../lib/campuses.js';
 import ConfirmDialog from '../ui/ConfirmDialog.jsx';
@@ -232,9 +233,19 @@ export default function ChatWindow({ conversation }) {
     patchConversation(id, { blockedByMe: now });
     flash(now ? `You blocked ${otherFirstName}` : `You unblocked ${otherFirstName}`);
   };
-  const headerMenu = other
-    ? [{ key: 'block', label: blocked ? `Unblock ${otherFirstName}` : `Block ${otherFirstName}`, Icon: Ban, onSelect: () => setBlockDialog(true), danger: !blocked }]
-    : [];
+  // Round 2: per-chat wallpaper (only this user sees it).
+  const [wallpaperOpen, setWallpaperOpen] = useState(false);
+  const setBackground = async (background) => {
+    const { background: saved } = await conversationsApi.setBackground(id, background);
+    patchConversation(id, { background: saved });
+  };
+
+  const headerMenu = [
+    { key: 'wallpaper', label: 'Chat wallpaper', Icon: ImageIcon, onSelect: () => setWallpaperOpen(true) },
+    ...(other
+      ? [{ key: 'block', label: blocked ? `Unblock ${otherFirstName}` : `Block ${otherFirstName}`, Icon: Ban, onSelect: () => setBlockDialog(true), danger: !blocked }]
+      : []),
+  ];
 
   const sendVoice = (recording) => {
     chat.sendVoiceNote(recording, { replyTo: replyingTo });
@@ -332,6 +343,13 @@ export default function ChatWindow({ conversation }) {
         attachItems={attachItems}
       />
       )}
+
+      <WallpaperPicker
+        open={wallpaperOpen}
+        onClose={() => setWallpaperOpen(false)}
+        value={conversation.background || ''}
+        onChange={setBackground}
+      />
 
       <ConfirmDialog
         open={blockDialog}

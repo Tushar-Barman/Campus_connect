@@ -115,6 +115,11 @@ export function useConversations(currentUserId, openConversationId) {
     );
   });
 
+  // Round 2: this user changed a chat's wallpaper (here or in another tab).
+  useSocketEvent('conversation_background', ({ conversationId, background } = {}) => {
+    if (conversationId) patchConversation(conversationId, { background: background ?? '' });
+  });
+
   // Round 2: this user blocked/unblocked someone (here or in another tab).
   useSocketEvent('block_changed', ({ userId, blocked } = {}) => {
     if (!userId) return;

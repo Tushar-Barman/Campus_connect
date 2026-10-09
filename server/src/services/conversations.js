@@ -3,6 +3,7 @@ import { Message } from '../models/Message.js';
 import { User, PUBLIC_USER_FIELDS } from '../models/User.js';
 import { loadConversationForUser } from '../middleware/membership.js';
 import { notifyConversationCreated } from '../socket/notify.js'; // P3's broadcast helpers
+import { emitToUsers } from '../socket/emit.js';
 import { HttpError } from '../utils/http.js';
 import { isValidId } from '../utils/validate.js';
 import { toObjectId, sameId } from '../utils/ids.js';
@@ -21,7 +22,7 @@ const withDetails = (query) =>
  */
 async function getViewer(userId) {
   const [me, blockedMe] = await Promise.all([
-    User.findById(userId).select('+starredConversations +blockedUsers').lean(),
+    User.findById(userId).select('+starredConversations +blockedUsers +chatBackgrounds').lean(),
     User.find({ blockedUsers: toObjectId(userId) }).select('_id').lean(),
   ]);
   const blockedByMe = new Set((me?.blockedUsers || []).map(String));
@@ -29,6 +30,7 @@ async function getViewer(userId) {
     starred: new Set((me?.starredConversations || []).map(String)),
     blockedByMe,
     relations: new Set([...blockedByMe, ...blockedMe.map((u) => String(u._id))]),
+    backgrounds: me?.chatBackgrounds ?? {},
   };
 }
 
@@ -75,6 +77,7 @@ const decorate = (conversation, viewer, unread, userId) => ({
   participants: conversation.participants.map((p) => maskPresence(p, viewer.relations)),
   lastMessage: previewFor(conversation.lastMessage, userId),
   isStarred: viewer.starred.has(String(conversation._id)),
+  background: viewer.backgrounds[String(conversation._id)] ?? '', // Round 2: this user's wallpaper
   // Round 2: only the blocker learns about a block; there is deliberately no blockedMe.
   blockedByMe:
     conversation.type === 'private' &&
@@ -147,6 +150,30 @@ export async function findOrCreatePrivate(meId, otherId) {
     notifyConversationCreated({ ...conversation, isStarred: false, unreadCount: 0 });
   }
   return { conversation, created };
+}
+
+// ── Round 2: per-user chat wallpaper ───────────────────────
+
+/** Preset ids; the matching .cc-wall-<id> classes live in client/src/index.css. */
+export const WALLPAPER_PRESETS = ['mist', 'dawn', 'pine', 'dusk', 'sand', 'contour', 'dots', 'grid'];
+const HEX_COLOUR = /^#[0-9a-f]{6}$/i;
+
+/**
+ * PUT /conversations/:id/background { background }: a preset id, "#rrggbb", or "" to reset.
+ * Stored on the user's own document, so it only changes their view. Their other tabs
+ * get conversation_background.
+ */
+export async function setBackground(conversationId, userId, background) {
+  const { _id } = await loadConversationForUser(conversationId, userId, { lean: true });
+  if (typeof background !== 'string' || (background !== '' && !WALLPAPER_PRESETS.includes(background) && !HEX_COLOUR.test(background))) {
+    throw new HttpError(400, 'background must be a preset id, a #rrggbb colour, or "" to reset');
+  }
+  const value = HEX_COLOUR.test(background) ? background.toLowerCase() : background;
+  const key = `chatBackgrounds.${_id}`;
+  await User.updateOne({ _id: userId }, value ? { $set: { [key]: value } } : { $unset: { [key]: 1 } });
+  const result = { conversationId: String(_id), background: value };
+  emitToUsers([userId], 'conversation_background', result);
+  return result;
 }
 
 /** Star / unstar for this user only (stored on their own User document). */
