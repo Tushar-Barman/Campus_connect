@@ -147,7 +147,7 @@ Password: minimum 8 characters. Email normalised to lowercase.
 ### Conversations
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/conversations` | Your chats, newest first. Each item has populated `participants`, `lastMessage`, plus `isStarred` and `unreadCount` → `{ conversations }` |
+| GET | `/conversations` | Your chats, newest first. Each item has populated `participants`, `lastMessage`, plus `isStarred` and `unreadCount` → `{ conversations }`. **(Round 2)** also `hasUnreadMention` (an unread message @mentions you). |
 | POST | `/conversations` | `{ userId }` → find-or-create private chat → `{ conversation, created }` |
 | GET | `/conversations/:id` | → `{ conversation }` |
 | POST / DELETE | `/conversations/:id/star` | Star / unstar for the current user only |
@@ -163,7 +163,7 @@ Password: minimum 8 characters. Email normalised to lowercase.
 | GET | `/messages/:conversationId/pinned` | → `{ messages }` |
 | POST | `/messages/:conversationId/pin/:messageId` | Pin |
 | DELETE | `/messages/:conversationId/pin/:messageId` | Unpin |
-| POST | `/messages/:conversationId/media` | multipart `file` + `duration`; creates the message and broadcasts it (Phase 3) |
+| POST | `/messages/:conversationId/media` | multipart `file` + `duration`; creates the message and broadcasts it (Phase 3). **(Round 2)** optional `replyTo` field (message id), validated before uploading. |
 | PATCH | `/messages/:conversationId/:messageId` | **(Round 2)** `{ text }`. Sender only, text messages only, within **15 min**, 1–4000 chars. Sets `editedAt` → `{ message }`, broadcasts `message_updated`. 403 outside the window or for someone else's message. |
 | DELETE | `/messages/:conversationId/:messageId?scope=everyone\|me` | **(Round 2)** `everyone`: sender only, within **1 h**. Clears content, unpins it (and emits `message_unpinned`), deletes the Cloudinary file best-effort → `{ message }` (tombstone), broadcasts `message_updated`. `me`: any member → `{ messageId, hidden: true }`, and only the user's own tabs are told. Repeating a delete is harmless. |
 
@@ -186,7 +186,10 @@ Password: minimum 8 characters. Email normalised to lowercase.
 ### Client → Server
 | Event | Payload | Ack |
 |---|---|---|
-| `send_message` | `{ conversationId, text, clientId }` | `{ ok, message }` |
+| `send_message` | `{ conversationId, text, clientId, replyTo?, mentions? }` | `{ ok, message }` |
+
+**(Round 2)** `replyTo` is a message id. It must be in the same chat and must not be one the sender deleted "for me"; otherwise the ack is `{ ok: false, error }`. `mentions` is an array of user ids, at most 50. In groups the server keeps only ids of participants; in private chats mentions are dropped. The saved message has `replyTo` as a preview (see §5) and `mentions` as ids.
+
 | `typing` | `{ conversationId }` | — |
 | `stop_typing` | `{ conversationId }` | — |
 | `message_delivered` | `{ messageId }` | — |

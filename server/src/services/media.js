@@ -1,6 +1,6 @@
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
-import { loadConversationForUser, createMessage, HttpError } from '../socket/deps.js';
+import { loadConversationForUser, createMessage, resolveReplyTo, HttpError } from '../socket/deps.js';
 import { publishMessage } from '../socket/notify.js';
 import { isObjectId } from '../socket/validate.js';
 
@@ -85,9 +85,11 @@ function parseDuration(value) {
 
 // Everything after multer: membership, content check, upload, save, broadcast.
 // Returns the message as clients receive it over new_message.
-export async function createMediaMessage({ conversationId, userId, file, duration }) {
+export async function createMediaMessage({ conversationId, userId, file, duration, replyTo }) {
   if (!isObjectId(conversationId)) throw new HttpError(404, 'Conversation not found');
   const conversation = await loadConversationForUser(conversationId, String(userId));
+  // Round 2: checked before the upload, so a bad reply target costs no Cloudinary call.
+  const replyToId = await resolveReplyTo(conversation, replyTo, String(userId));
 
   if (!file) throw new HttpError(400, 'No file uploaded');
   const mime = baseMime(file.mimetype);
@@ -123,6 +125,7 @@ export async function createMediaMessage({ conversationId, userId, file, duratio
     mediaUrl,
     mediaType: isVoice ? 'audio/mpeg' : mime,
     duration: seconds,
+    replyTo: replyToId,
   });
   return publishMessage(conversation, created);
 }

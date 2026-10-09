@@ -154,6 +154,38 @@ function cleanText(value, { required }) {
   return text;
 }
 
+// ── Replies and mentions (Round 2) ──────────────────────────
+
+const MAX_MENTIONS = 50; // = max group size
+
+/**
+ * Validates a reply target for `senderId` in `conversation`: a real message in the
+ * same chat that the sender hasn't deleted "for me". Returns its ObjectId, or
+ * undefined when there is no reply. Throws HttpError(400) otherwise.
+ */
+export async function resolveReplyTo(conversation, replyTo, senderId) {
+  if (replyTo === undefined || replyTo === null || replyTo === '') return undefined;
+  if (typeof replyTo !== 'string' || !isValidId(replyTo)) throw new HttpError(400, 'Invalid reply target');
+  const exists = await Message.exists({
+    _id: replyTo,
+    conversationId: conversation._id,
+    hiddenFor: { $ne: toObjectId(senderId) },
+  });
+  if (!exists) throw new HttpError(400, 'The message you are replying to is not in this chat');
+  return toObjectId(replyTo);
+}
+
+/**
+ * Keeps only mentions of people who are in this group (private chats have none).
+ * Invalid entries are dropped rather than rejected, so a stale autocomplete never blocks a send.
+ */
+export function cleanMentions(conversation, mentions) {
+  if (conversation.type !== 'group' || !Array.isArray(mentions)) return [];
+  const members = new Set(conversation.participants.map(idOf));
+  const ids = mentions.filter((id) => typeof id === 'string' && isValidId(id) && members.has(id));
+  return [...new Set(ids)].slice(0, MAX_MENTIONS).map(toObjectId);
+}
+
 /**
  * Validates and saves one message, then returns the saved document (with _id and createdAt).
  *
@@ -176,6 +208,9 @@ export async function createMessage(fields = {}) {
   if (!MESSAGE_TYPES.includes(messageType)) throw new HttpError(400, 'Unsupported message type');
 
   const doc = { conversationId, senderId, messageType };
+  // Round 2: callers validate these first (resolveReplyTo / cleanMentions).
+  if (fields.replyTo) doc.replyTo = fields.replyTo;
+  if (Array.isArray(fields.mentions) && fields.mentions.length) doc.mentions = fields.mentions;
 
   if (messageType === 'text') {
     doc.text = cleanText(fields.text, { required: true });

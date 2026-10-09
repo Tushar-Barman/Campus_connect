@@ -65,7 +65,18 @@ function ConversationItem({ conversation, myId, onSelect }) {
           ) : (
             <p className={`truncate text-[13px] ${unread ? 'font-medium text-ink' : 'text-ink-muted'}`}>{preview}</p>
           )}
-          {unread ? <Badge aria-label={`${unread} unread messages`}>{unread > 99 ? '99+' : unread}</Badge> : null}
+          <span className="flex shrink-0 items-center gap-1">
+            {unread && conversation.hasUnreadMention ? (
+              <span
+                className="flex h-5 w-5 items-center justify-center rounded-full bg-star text-[11px] font-bold text-ink"
+                aria-label="You were mentioned"
+                title="You were mentioned"
+              >
+                @
+              </span>
+            ) : null}
+            {unread ? <Badge aria-label={`${unread} unread messages`}>{unread > 99 ? '99+' : unread}</Badge> : null}
+          </span>
         </div>
       </div>
     </NavLink>

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, Loader2, MessageCircle } from 'lucide-react';
 import { getReceiptStatus } from '@p3/hooks/useReceipts.js';
 import MessageBubble from './MessageBubble.jsx';
@@ -24,7 +24,7 @@ function LoadingBubbles() {
 }
 
 /** `chat` is the object returned by P3's useMessages(conversationId, currentUser). */
-export default function MessageList({ conversation, chat, myId, typingUsers, pinnedIds, highlightId, onPin, onUnpin, onEdit, onDelete }) {
+export default function MessageList({ conversation, chat, myId, typingUsers, pinnedIds, highlightId, onPin, onUnpin, onEdit, onDelete, onReply, onJump }) {
   const scrollRef = useRef(null);
   const atBottomRef = useRef(true);
   const prevRef = useRef({ first: null, last: null, length: 0, scrollHeight: 0 });
@@ -32,6 +32,11 @@ export default function MessageList({ conversation, chat, myId, typingUsers, pin
 
   const { messages, hasMore, loading, loadingOlder, error, loadOlder, reload, retryMessage, discardMessage } = chat;
   const isGroup = conversation.type === 'group';
+  // userId → name, for highlighting @mentions. One Map per participant list, so bubbles stay memoised.
+  const people = useMemo(
+    () => new Map((conversation.participants ?? []).map((p) => [idOf(p), p.name])),
+    [conversation.participants],
+  );
   const typingText = typingLabel(typingUsers);
 
   const scrollToBottom = useCallback((smooth = false) => {
@@ -125,6 +130,9 @@ export default function MessageList({ conversation, chat, myId, typingUsers, pin
                 onUnpin={() => onUnpin(message)}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onReply={onReply}
+                onJump={onJump}
+                people={people}
               />
             </Fragment>
           );

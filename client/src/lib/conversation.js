@@ -55,4 +55,11 @@ export function previewText(message) {
   return message.text || '';
 }
 
+/** Round 2: one line for a quoted message (reply bar, quote in a bubble). */
+export function replySnippet(message) {
+  if (!message) return 'Original message unavailable';
+  if (message.deleted || message.deletedAt) return 'This message was deleted';
+  return previewText(message) || 'Message';
+}
+
 export { idOf };

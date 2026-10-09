@@ -18,7 +18,7 @@ import { buttonClass } from '../ui/Button.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useConversationList } from '../../context/ConversationsContext.jsx';
 import { conversationsApi, getErrorMessage } from '../../lib/api.js';
-import { isNotFoundError } from '../../lib/conversation.js';
+import { idOf, isNotFoundError } from '../../lib/conversation.js';
 import { canDeleteForEveryone, isDeleted } from '../../lib/messageRules.js';
 
 const HIGHLIGHT_MS = 1600;
@@ -41,6 +41,7 @@ export default function ChatWindow({ conversation }) {
   const [notice, setNotice] = useState('');
   const [editing, setEditing] = useState(null); // message being edited in the Composer
   const [deleting, setDeleting] = useState(null); // message waiting for delete confirmation
+  const [replyingTo, setReplyingTo] = useState(null); // message quoted in the Composer
   const noticeTimer = useRef(null);
 
   const flash = useCallback((text) => {
@@ -84,7 +85,14 @@ export default function ChatWindow({ conversation }) {
   };
 
   // Round 2: edit / delete. In mock mode (P2 stand-ins) these don't exist, so the menu hides them.
-  const startEdit = useCallback((message) => setEditing(message), []);
+  const startEdit = useCallback((message) => {
+    setReplyingTo(null);
+    setEditing(message);
+  }, []);
+  const startReply = useCallback((message) => {
+    setEditing(null);
+    setReplyingTo(message);
+  }, []);
   const askDelete = useCallback((message) => setDeleting(message), []);
   const onEdit = chat.editMessage ? startEdit : undefined;
   const onDelete = chat.deleteMessage ? askDelete : undefined;
@@ -98,16 +106,31 @@ export default function ChatWindow({ conversation }) {
       ]
     : [];
 
-  // If the message being edited gets deleted (e.g. from another tab), leave edit mode.
+  // If the message being edited or quoted gets deleted (e.g. from another tab), drop it.
   useEffect(() => {
-    if (!editing) return;
-    const current = chat.messages.find((m) => m._id === editing._id);
-    if (!current || isDeleted(current)) setEditing(null);
-  }, [chat.messages, editing]);
+    const gone = (target) => {
+      const current = chat.messages.find((m) => m._id === target._id);
+      return !current || isDeleted(current);
+    };
+    if (editing && gone(editing)) setEditing(null);
+    if (replyingTo && gone(replyingTo)) setReplyingTo(null);
+  }, [chat.messages, editing, replyingTo]);
 
-  const send = (text) => {
+  // @mention candidates: everyone else in a group. Private chats have no mentions.
+  const members = useMemo(
+    () => (conversation.type === 'group' ? conversation.participants.filter((p) => idOf(p) !== user?._id) : []),
+    [conversation.type, conversation.participants, user?._id],
+  );
+
+  const sendVoice = (recording) => {
+    chat.sendVoiceNote(recording, { replyTo: replyingTo });
+    setReplyingTo(null);
+  };
+
+  const send = (text, { mentions } = {}) => {
     typing.stopTyping(); // P3: call stopTyping() right before sending
-    chat.sendMessage(text);
+    chat.sendMessage(text, { replyTo: replyingTo, mentions });
+    setReplyingTo(null);
   };
 
   if (isNotFoundError(chat.error)) {
@@ -155,16 +178,22 @@ export default function ChatWindow({ conversation }) {
         onUnpin={(m) => setPinned(m._id, false)}
         onEdit={onEdit}
         onDelete={onDelete}
+        onReply={startReply}
+        onJump={jumpTo}
       />
 
       <Composer
         onSend={send}
         onInput={typing.notifyTyping}
         onStopTyping={typing.stopTyping}
-        onRecorded={chat.sendVoiceNote}
+        onRecorded={sendVoice}
         editing={editing}
         onSubmitEdit={(text) => chat.editMessage(editing._id, text)}
         onCancelEdit={() => setEditing(null)}
+        replyingTo={replyingTo}
+        onCancelReply={() => setReplyingTo(null)}
+        myId={user?._id}
+        members={members}
       />
 
       <ConfirmDialog

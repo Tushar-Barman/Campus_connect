@@ -231,6 +231,61 @@ async function phase2({ A, B, C, sA, sB, privId }) {
   check('non-member delete for me → 404', outsiderMe.status === 404, show(outsiderMe));
 }
 
+// ── Phase 3: replies and mentions ────────────────────────────
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64'
+);
+
+async function phase3({ A, B, C, sA, sB, privId }) {
+  section('Phase 3 · replies and @mentions');
+  const sendIn = (socket, conversationId, text, extra = {}) =>
+    emitAck(socket, 'send_message', { conversationId, text, clientId: `p3-${Math.random()}`, ...extra });
+
+  const group = await call('POST', '/conversations/group', { token: A.token, body: { name: 'Round2 Mentions', memberIds: [B.id] } });
+  const groupId = group.data?.conversation?._id;
+  check('group for mention tests created', group.status === 201 && groupId, show(group));
+
+  // Replies
+  const original = (await sendIn(sB.socket, privId, 'what time is the lab?')).message;
+  const ans = await sendIn(sA.socket, privId, '3 pm', { replyTo: original._id });
+  check('reply is accepted and carries a preview', ans.ok && ans.message?.replyTo?._id === original._id && ans.message.replyTo.text === 'what time is the lab?' && ans.message.replyTo.senderId?.name === B.name, JSON.stringify(ans));
+  const live = await waitFor(sB.events, 'new_message', (p) => p?.message?._id === ans.message?._id);
+  check('new_message for the reply includes the preview', live?.message?.replyTo?._id === original._id);
+  const groupMsg = (await sendIn(sA.socket, groupId, 'group only')).message;
+  const cross = await sendIn(sA.socket, privId, 'sneaky', { replyTo: groupMsg._id });
+  check('reply to a message from another chat → rejected', cross.ok === false && /not in this chat/i.test(cross.error), JSON.stringify(cross));
+  const junk = await sendIn(sA.socket, privId, 'junk', { replyTo: 'not-an-id' });
+  check('malformed reply id → rejected', junk.ok === false, JSON.stringify(junk));
+  await call('DELETE', `/messages/${privId}/${original._id}?scope=me`, { token: A.token });
+  const hidden = await sendIn(sA.socket, privId, 'reply to hidden', { replyTo: original._id });
+  check('reply to a message you deleted for yourself → rejected', hidden.ok === false, JSON.stringify(hidden));
+  const badMedia = await call('POST', `/messages/${privId}/media`, {
+    token: A.token,
+    form: (() => { const f = new FormData(); f.append('file', new Blob([PNG], { type: 'image/png' }), 'a.png'); f.append('replyTo', String(groupMsg._id)); return f; })(),
+  });
+  check('media upload with a reply from another chat → 400 (before uploading)', badMedia.status === 400, show(badMedia));
+
+  // Mentions
+  const ghost = new mongoose.Types.ObjectId().toString();
+  const ment = await sendIn(sA.socket, groupId, '@Bilal can you bring the slides?', { mentions: [B.id, C.id, ghost, 'junk', B.id] });
+  check('mentions keep only group members, deduplicated', ment.ok && ment.message?.mentions?.length === 1 && String(ment.message.mentions[0]) === B.id, JSON.stringify(ment.message?.mentions));
+  const privMention = await sendIn(sA.socket, privId, 'hey @Bilal', { mentions: [B.id] });
+  check('mentions are ignored in private chats', privMention.ok && !(privMention.message?.mentions?.length), JSON.stringify(privMention.message?.mentions));
+  const tooMany = await sendIn(sA.socket, groupId, 'spam', { mentions: Array(51).fill(B.id) });
+  check('more than 50 mentions → rejected', tooMany.ok === false, JSON.stringify(tooMany));
+
+  const listB = await call('GET', '/conversations', { token: B.token });
+  const gB = listB.data?.conversations?.find((c) => c._id === groupId);
+  check('mentioned user sees hasUnreadMention', gB?.hasUnreadMention === true, JSON.stringify(gB && { unread: gB.unreadCount, m: gB.hasUnreadMention }));
+  const listA = await call('GET', '/conversations', { token: A.token });
+  check('sender does not', listA.data?.conversations?.find((c) => c._id === groupId)?.hasUnreadMention === false);
+  sB.socket.emit('message_read', { conversationId: groupId });
+  await sleep(600);
+  const afterRead = await call('GET', '/conversations', { token: B.token });
+  check('reading the chat clears hasUnreadMention', afterRead.data?.conversations?.find((c) => c._id === groupId)?.hasUnreadMention === false);
+}
+
 async function main() {
   console.log(`\nCampusConnect Round 2 smoke test → ${BASE}`);
   try {
@@ -253,6 +308,7 @@ async function main() {
   try {
     await phase1(ctx);
     await phase2(ctx);
+    await phase3(ctx);
   } finally {
     [sA, sB, sC].forEach((s) => s.socket.close());
     const ids = [A.id, B.id, C.id];

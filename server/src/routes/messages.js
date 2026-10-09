@@ -78,6 +78,7 @@ router.post(
       userId: req.user._id,
       file: req.file,
       duration: req.body?.duration,
+      replyTo: req.body?.replyTo, // Round 2
     });
     res.status(201).json({ message });
   })

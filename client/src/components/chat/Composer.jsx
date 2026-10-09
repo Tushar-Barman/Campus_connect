@@ -1,7 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, Mic, Pencil, SendHorizontal, X } from 'lucide-react';
+import { Check, Mic, Pencil, Reply, SendHorizontal, X } from 'lucide-react';
 import { useVoiceRecorder } from '@p3/hooks/useVoiceRecorder.js';
 import Button from '../ui/Button.jsx';
+import Avatar from '../ui/Avatar.jsx';
+import { idOf, replySnippet } from '../../lib/conversation.js';
+import { useMentionAutocomplete } from '../../lib/useMentionAutocomplete.js';
 import { formatDuration } from '../../lib/media.js';
 
 export const MESSAGE_MAX = 4000;
@@ -39,18 +42,86 @@ function EditingBar({ onCancel }) {
   );
 }
 
+function ReplyBar({ message, myId, onCancel }) {
+  const name = idOf(message.senderId) === myId ? 'yourself' : message.senderId?.name || 'Deleted user';
+  return (
+    <div className="mb-2 flex items-center gap-2 rounded-xl border-l-4 border-brand-500 bg-brand-50 px-3 py-1.5 text-xs animate-fade-in">
+      <Reply className="h-3.5 w-3.5 shrink-0 text-brand-700" aria-hidden="true" />
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold text-brand-800">Replying to {name}</span>
+        <span className="block truncate text-ink-muted">{replySnippet(message)}</span>
+      </span>
+      <button
+        type="button"
+        onClick={onCancel}
+        aria-label="Cancel reply"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-brand-100 hover:text-ink"
+      >
+        <X className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+function MentionList({ mentions }) {
+  return (
+    <ul
+      role="listbox"
+      aria-label="Mention someone"
+      className="absolute bottom-full left-0 z-30 mb-2 w-full max-w-xs overflow-hidden rounded-xl border border-border bg-surface py-1 shadow-pop animate-fade-in"
+    >
+      {mentions.suggestions.map((member, index) => (
+        <li key={member._id} role="option" aria-selected={index === mentions.active}>
+          <button
+            type="button"
+            // mousedown, so the textarea keeps focus
+            onMouseDown={(e) => {
+              e.preventDefault();
+              mentions.select(member);
+            }}
+            onMouseEnter={() => mentions.setActive(index)}
+            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm ${index === mentions.active ? 'bg-brand-50' : ''}`}
+          >
+            <Avatar name={member.name} src={member.profilePicture} size="xs" />
+            <span className="truncate">{member.name}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * Text input + voice notes.
  * onInput → P3 useTyping().notifyTyping · onStopTyping → stopTyping · onRecorded → P3 useMessages().sendVoiceNote
  * Round 2: `editing` (a message) switches to edit mode; onSubmitEdit(text) may reject with an axios error.
+ * `replyingTo` shows the quote bar; `members` (groups only) enables @mentions. onSend(text, { mentions }).
  */
-export default function Composer({ onSend, onInput, onStopTyping, onRecorded, editing = null, onSubmitEdit, onCancelEdit }) {
+export default function Composer({
+  onSend,
+  onInput,
+  onStopTyping,
+  onRecorded,
+  editing = null,
+  onSubmitEdit,
+  onCancelEdit,
+  replyingTo = null,
+  onCancelReply,
+  myId,
+  members = [],
+}) {
   const [text, setText] = useState('');
   const [shownError, setShownError] = useState('');
   const [saving, setSaving] = useState(false);
   const ref = useRef(null);
   const draftRef = useRef(''); // what was being typed before Edit was chosen
   const editingId = editing?._id ?? null;
+  const replyingId = replyingTo?._id ?? null;
+  const mentions = useMentionAutocomplete({ members, text, setText, inputRef: ref });
+
+  useEffect(() => {
+    if (replyingId) ref.current?.focus();
+  }, [replyingId]);
 
   // Entering edit mode loads the message text; leaving it restores the earlier draft.
   useEffect(() => {
@@ -114,7 +185,8 @@ export default function Composer({ onSend, onInput, onStopTyping, onRecorded, ed
       }
       return;
     }
-    onSend(trimmed);
+    onSend(trimmed, { mentions: mentions.mentionIdsIn(trimmed) });
+    mentions.reset();
     setText('');
     ref.current?.focus();
   };
@@ -128,6 +200,7 @@ export default function Composer({ onSend, onInput, onStopTyping, onRecorded, ed
       }}
     >
       {editingId ? <EditingBar onCancel={onCancelEdit} /> : null}
+      {replyingTo && !editingId ? <ReplyBar message={replyingTo} myId={myId} onCancel={onCancelReply} /> : null}
       {shownError ? (
         <p className="mb-2 text-xs text-danger" role="alert">
           {shownError}
@@ -138,6 +211,7 @@ export default function Composer({ onSend, onInput, onStopTyping, onRecorded, ed
           <RecordingBar elapsedMs={elapsedMs} maxDurationMs={maxDurationMs} />
         ) : (
           <div className="relative flex-1">
+            {mentions.open ? <MentionList mentions={mentions} /> : null}
             <label htmlFor="composer" className="sr-only">Message</label>
             <textarea
               id="composer"
@@ -146,13 +220,20 @@ export default function Composer({ onSend, onInput, onStopTyping, onRecorded, ed
               value={text}
               onChange={(e) => {
                 setText(e.target.value);
+                mentions.track(e.target.value, e.target.selectionStart);
                 if (e.target.value.trim()) onInput();
                 else onStopTyping();
               }}
               onKeyDown={(e) => {
+                if (mentions.onKeyDown(e)) return;
                 if (e.key === 'Escape' && editingId) {
                   e.preventDefault();
                   onCancelEdit?.();
+                  return;
+                }
+                if (e.key === 'Escape' && replyingId) {
+                  e.preventDefault();
+                  onCancelReply?.();
                   return;
                 }
                 if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -160,7 +241,12 @@ export default function Composer({ onSend, onInput, onStopTyping, onRecorded, ed
                   send();
                 }
               }}
-              onBlur={onStopTyping}
+              onBlur={() => {
+                onStopTyping();
+                mentions.close();
+              }}
+              aria-autocomplete={members.length ? 'list' : undefined}
+              aria-expanded={members.length ? mentions.open : undefined}
               placeholder={editingId ? 'Edit your message' : 'Type a message'}
               aria-invalid={tooLong || undefined}
               className="block max-h-40 w-full resize-none rounded-2xl border border-border bg-canvas px-4 py-2.5 text-sm placeholder:text-ink-subtle focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 focus:outline-none"

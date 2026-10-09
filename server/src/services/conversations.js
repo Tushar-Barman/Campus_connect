@@ -22,6 +22,8 @@ async function getStarredSet(userId) {
 /**
  * Unread = messages from someone else that this user hasn't read.
  * One aggregation for all conversations instead of one query each.
+ * Round 2: also counts unread messages that @mention this user.
+ * Returns Map(conversationId → { count, mentions }).
  */
 async function getUnreadCounts(conversationIds, userId) {
   if (!conversationIds.length) return new Map();
@@ -34,9 +36,15 @@ async function getUnreadCounts(conversationIds, userId) {
         'readBy.user': { $ne: uid },
       },
     },
-    { $group: { _id: '$conversationId', count: { $sum: 1 } } },
+    {
+      $group: {
+        _id: '$conversationId',
+        count: { $sum: 1 },
+        mentions: { $sum: { $cond: [{ $in: [uid, { $ifNull: ['$mentions', []] }] }, 1, 0] } },
+      },
+    },
   ]);
-  return new Map(rows.map((row) => [String(row._id), row.count]));
+  return new Map(rows.map((row) => [String(row._id), { count: row.count, mentions: row.mentions }]));
 }
 
 // The sidebar preview: tombstone if deleted, null if this user deleted it "for me".
@@ -52,7 +60,8 @@ const decorate = (conversation, starred, unread, userId) => ({
   ...conversation,
   lastMessage: previewFor(conversation.lastMessage, userId),
   isStarred: starred.has(String(conversation._id)),
-  unreadCount: unread.get(String(conversation._id)) || 0,
+  unreadCount: unread.get(String(conversation._id))?.count || 0,
+  hasUnreadMention: (unread.get(String(conversation._id))?.mentions || 0) > 0, // Round 2
 });
 
 /** GET /conversations: the user's chats, newest activity first, with isStarred and unreadCount. */

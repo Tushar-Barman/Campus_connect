@@ -47,7 +47,7 @@ export function useConversations(currentUserId, openConversationId) {
 
   // Opening a chat clears its unread badge.
   useEffect(() => {
-    if (openConversationId) patchConversation(openConversationId, { unreadCount: 0 });
+    if (openConversationId) patchConversation(openConversationId, { unreadCount: 0, hasUnreadMention: false });
   }, [openConversationId, patchConversation]);
 
   useSocketEvent('new_message', ({ message } = {}) => {
@@ -69,6 +69,11 @@ export function useConversations(currentUserId, openConversationId) {
         lastMessage: message,
         lastMessageAt: message.createdAt,
         unreadCount: fromOther && !seen ? (current.unreadCount ?? 0) + 1 : (current.unreadCount ?? 0),
+        // Round 2: "@" badge until this user opens the chat.
+        hasUnreadMention:
+          fromOther && !seen && (message.mentions ?? []).some((id) => idOf(id) === String(currentUserId))
+            ? true
+            : Boolean(current.hasUnreadMention),
       };
       return [updated, ...list.slice(0, index), ...list.slice(index + 1)];
     });

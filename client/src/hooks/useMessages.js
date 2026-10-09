@@ -3,6 +3,7 @@ import api from '../lib/api.js';
 import { getSocket } from '../lib/socket.js';
 import { useSocketEvent, useSocketReconnect } from './useSocketEvent.js';
 import {
+  idOf,
   applyDelivered,
   applyRead,
   confirmed,
@@ -24,6 +25,19 @@ const newClientId = () =>
 
 const errorText = (err, fallback) => err.response?.data?.error ?? fallback;
 
+// Round 2: the quoted message as the server shapes it, so a draft renders its quote at once.
+function replyPreview(message) {
+  if (!message?._id) return undefined;
+  return {
+    _id: message._id,
+    senderId: message.senderId ? { _id: idOf(message.senderId), name: message.senderId.name } : null,
+    messageType: message.messageType,
+    text: (message.text || '').slice(0, 120),
+    ...(message.fileName ? { fileName: message.fileName } : {}),
+    deleted: Boolean(message.deletedAt),
+  };
+}
+
 function voiceFileName(type) {
   if (type.includes('mp4')) return 'voice-note.m4a';
   if (type.includes('ogg')) return 'voice-note.ogg';
@@ -42,7 +56,7 @@ export function useMessages(conversationId, currentUser) {
 
   const cidRef = useRef(conversationId);
   const latestRequestRef = useRef(0);
-  // clientId -> { blob, duration, previewUrl } for voice notes not yet saved
+  // clientId -> { blob, duration, previewUrl, replyTo } for voice notes not yet saved
   const voiceDraftsRef = useRef(new Map());
 
   useEffect(() => {
@@ -127,11 +141,21 @@ export function useMessages(conversationId, currentUser) {
 
       socket
         .timeout(SEND_TIMEOUT_MS)
-        .emit('send_message', { conversationId: cid, text: draft.text, clientId: draft.clientId }, (err, res) => {
+        .emit(
+          'send_message',
+          {
+            conversationId: cid,
+            text: draft.text,
+            clientId: draft.clientId,
+            ...(draft.replyTo?._id ? { replyTo: String(draft.replyTo._id) } : {}),
+            ...(draft.mentions?.length ? { mentions: draft.mentions } : {}),
+          },
+          (err, res) => {
           if (err) return markFailed(cid, draft.clientId, 'No response from server');
           if (!res?.ok) return markFailed(cid, draft.clientId, res?.error ?? 'Could not send message');
           updateFor(cid, (list) => resolveDraft(list, draft.clientId, confirmed(res.message)));
-        });
+          },
+        );
     },
     [markFailed, updateFor],
   );
@@ -142,6 +166,7 @@ export function useMessages(conversationId, currentUser) {
       if (!draft) return;
       const form = new FormData();
       form.append('duration', String(draft.duration));
+      if (draft.replyTo?._id) form.append('replyTo', String(draft.replyTo._id));
       form.append('file', draft.blob, voiceFileName(draft.blob.type));
       try {
         const { data } = await api.post(`/messages/${cid}/media`, form, {
@@ -160,8 +185,9 @@ export function useMessages(conversationId, currentUser) {
     [forgetVoiceDraft, markFailed, updateFor],
   );
 
+  // Round 2 options: { replyTo: message being replied to, mentions: [userId] }.
   const sendMessage = useCallback(
-    (text) => {
+    (text, { replyTo, mentions } = {}) => {
       const body = typeof text === 'string' ? text.trim() : '';
       if (!conversationId || !body || body.length > MAX_TEXT_LENGTH) return false;
 
@@ -173,6 +199,8 @@ export function useMessages(conversationId, currentUser) {
         text: body,
         createdAt: new Date().toISOString(),
         status: 'sending',
+        ...(replyTo ? { replyTo: replyPreview(replyTo) } : {}),
+        ...(mentions?.length ? { mentions } : {}),
       };
       setMessages((list) => [...list, draft]);
       emitText(conversationId, draft);
@@ -183,11 +211,12 @@ export function useMessages(conversationId, currentUser) {
 
   // Takes the recording from useVoiceRecorder: { blob, duration }.
   const sendVoiceNote = useCallback(
-    ({ blob, duration } = {}) => {
+    ({ blob, duration } = {}, { replyTo } = {}) => {
       if (!conversationId || !blob) return false;
       const clientId = newClientId();
       const previewUrl = URL.createObjectURL(blob);
-      voiceDraftsRef.current.set(clientId, { blob, duration, previewUrl });
+      const quoted = replyPreview(replyTo);
+      voiceDraftsRef.current.set(clientId, { blob, duration, previewUrl, replyTo: quoted });
 
       setMessages((list) => [
         ...list,
@@ -199,6 +228,7 @@ export function useMessages(conversationId, currentUser) {
           mediaUrl: previewUrl,
           mediaType: blob.type,
           duration,
+          ...(quoted ? { replyTo: quoted } : {}),
           createdAt: new Date().toISOString(),
           status: 'uploading',
           progress: 0,
