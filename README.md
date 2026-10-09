@@ -5,6 +5,32 @@ Students sign up, find each other, and chat one-to-one or in groups. Messages, t
 and read receipts update live. Voice notes are supported, and an AI **Chat Memory** turns a
 conversation into a summary, decisions, action items and dates.
 
+## Live demo
+
+**👉 [campus-connect-one-orcin.vercel.app](https://campus-connect-one-orcin.vercel.app)**
+
+| Part | Hosted on | URL |
+|---|---|---|
+| Web app (React) | Vercel | https://campus-connect-one-orcin.vercel.app |
+| API + real-time server | Render | https://campus-connect-b3xy.onrender.com ([health check](https://campus-connect-b3xy.onrender.com/api/health)) |
+
+> The server runs on Render's free plan and sleeps when idle. The **first request can take
+> 30–50 seconds** while it wakes up; after that, everything is instant.
+
+### Try it in two minutes
+
+1. Open the app in a **normal window** and in an **incognito window**, and register two accounts
+   (pick a campus, e.g. IIT Mandi).
+2. In one window, search for the other person and start a chat. Messages, typing and the
+   sent → delivered → read ticks update live in both windows.
+3. Things to try:
+   - **Message actions:** hover a message (or long-press on a phone) and use ⋮ to reply, edit or delete. Double-click a message to reply.
+   - **📎 menu:** send a photo or document, share your location, or ask the other person for theirs.
+   - **Voice and emoji:** hold the mic for a voice note, and use 😊 for emoji.
+   - **Groups:** create one, then @mention someone.
+   - **Chat Memory:** ✨ in the chat header summarises the conversation with AI.
+   - **Settings (⚙):** switch to dark mode, change the accent colour, or turn off read receipts. ⋮ in a chat header sets a wallpaper or blocks someone.
+
 **Full setup, testing and deployment steps: [`DEPLOY_GUIDE.md`](DEPLOY_GUIDE.md).**
 
 ## Features
