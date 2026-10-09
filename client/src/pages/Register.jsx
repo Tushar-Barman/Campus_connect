@@ -5,6 +5,8 @@ import AuthLayout from '../components/AuthLayout.jsx';
 import Button from '../components/ui/Button.jsx';
 import Input, { PasswordInput } from '../components/ui/Input.jsx';
 import { Alert } from '../components/ui/Feedback.jsx';
+import CampusSelect from '../components/campus/CampusSelect.jsx';
+import { useCampuses } from '../lib/campuses.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getErrorMessage } from '../lib/api.js';
 import { normaliseEmail, PASSWORD_MIN, validateRegister } from '../lib/validation.js';
@@ -26,7 +28,8 @@ export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+  const { campuses } = useCampuses();
+  const [form, setForm] = useState({ name: '', email: '', campus: '', password: '', confirmPassword: '' });
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -39,14 +42,14 @@ export default function Register() {
 
   const onSubmit = async (event) => {
     event.preventDefault();
-    const found = validateRegister(form);
+    const found = { ...validateRegister(form), ...(form.campus ? {} : { campus: 'Choose your campus' }) };
     setErrors(found);
     if (Object.keys(found).length) return;
 
     setSubmitting(true);
     setServerError('');
     try {
-      await register({ name: form.name.trim(), email: normaliseEmail(form.email), password: form.password });
+      await register({ name: form.name.trim(), email: normaliseEmail(form.email), password: form.password, campus: form.campus });
       navigate('/chat', { replace: true });
     } catch (error) {
       setServerError(getErrorMessage(error, 'Could not create your account. Please try again.'));
@@ -92,6 +95,17 @@ export default function Register() {
           value={form.email}
           onChange={update('email')}
           error={errors.email}
+        />
+        <CampusSelect
+          campuses={campuses}
+          value={form.campus}
+          onChange={(campus) => {
+            setForm((f) => ({ ...f, campus }));
+            setErrors((e) => ({ ...e, campus: undefined }));
+            if (serverError) setServerError('');
+          }}
+          error={errors.campus}
+          hint="People search starts with your campus. You can change it later."
         />
         <div>
           <PasswordInput

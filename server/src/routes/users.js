@@ -3,7 +3,7 @@ import { User, PUBLIC_USER_FIELDS } from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
 import { uploadLimiter } from '../middleware/rateLimit.js';
 import { HttpError, asyncHandler } from '../utils/http.js';
-import { escapeRegex, isValidId, requireString } from '../utils/validate.js';
+import { escapeRegex, isValidId, requireCampus, requireString } from '../utils/validate.js';
 import { IMAGE_TYPES } from '../utils/fileType.js';
 import { readUpload } from '../utils/multipart.js';
 import { avatarPublicId, destroyAsset, requireStorage, uploadBuffer } from '../services/storage.js';
@@ -15,7 +15,9 @@ const MAX_PICTURE_BYTES = 5 * 1024 * 1024;
 const router = Router();
 router.use(requireAuth);
 
-// GET /api/users/search?q=  → { users }  (name or email, case-insensitive, excludes you, max 20)
+// GET /api/users/search?q=&campus=  → { users }  (name or email, case-insensitive, excludes you, max 20)
+// Round 2: campus defaults to your own campus; "all" searches every campus; anything else must be a campus id.
+// Accounts without a campus yet are only found with campus=all.
 router.get(
   '/search',
   asyncHandler(async (req, res) => {
@@ -24,9 +26,20 @@ router.get(
     if (!q) return res.json({ users: [] });
     if (q.length > MAX_QUERY_LENGTH) throw new HttpError(400, `Search must be at most ${MAX_QUERY_LENGTH} characters`);
 
+    const filter = { _id: { $ne: req.userId } };
+    const scope = req.query.campus;
+    if (scope === 'all') {
+      // every campus
+    } else if (scope === undefined || scope === '') {
+      const me = await User.findById(req.userId).select('campus').lean();
+      if (me?.campus) filter.campus = me.campus;
+    } else {
+      filter.campus = requireCampus(typeof scope === 'string' ? scope : '');
+    }
+
     const pattern = new RegExp(escapeRegex(q), 'i');
     const users = await User.find({
-      _id: { $ne: req.userId },
+      ...filter,
       $or: [{ name: pattern }, { email: pattern }],
     })
       .select(PUBLIC_USER_FIELDS)
@@ -38,8 +51,8 @@ router.get(
   })
 );
 
-// PUT /api/users/profile  { name?, bio? } → { user }
-// Only name and bio are editable here; email, password, status etc. are ignored.
+// PUT /api/users/profile  { name?, bio?, campus? } → { user }
+// Only name, bio and campus are editable here; email, password, status etc. are ignored.
 router.put(
   '/profile',
   asyncHandler(async (req, res) => {
@@ -47,7 +60,8 @@ router.put(
     const update = {};
     if (body.name !== undefined) update.name = requireString(body.name, 'Name', { max: 50 });
     if (body.bio !== undefined) update.bio = requireString(body.bio, 'Bio', { min: 0, max: 200 });
-    if (!Object.keys(update).length) throw new HttpError(400, 'Nothing to update. Send name and/or bio.');
+    if (body.campus !== undefined) update.campus = requireCampus(body.campus); // Round 2
+    if (!Object.keys(update).length) throw new HttpError(400, 'Nothing to update. Send name, bio and/or campus.');
 
     const user = await User.findByIdAndUpdate(req.userId, update, { new: true, runValidators: true })
       .select(PUBLIC_USER_FIELDS)

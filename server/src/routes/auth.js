@@ -5,7 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { authLimiter } from '../middleware/rateLimit.js';
 import { signToken } from '../utils/auth.js';
 import { HttpError, asyncHandler } from '../utils/http.js';
-import { requireEmail, requirePassword, requireString } from '../utils/validate.js';
+import { requireCampus, requireEmail, requirePassword, requireString } from '../utils/validate.js';
 
 const BCRYPT_ROUNDS = 10;
 const INVALID_LOGIN = 'Invalid email or password';
@@ -16,7 +16,7 @@ const DUMMY_HASH = bcrypt.hashSync('timing-equaliser-not-a-real-password', BCRYP
 
 const router = Router();
 
-// POST /api/auth/register  { name, email, password } → 201 { token, user }
+// POST /api/auth/register  { name, email, password, campus } → 201 { token, user }
 router.post(
   '/register',
   authLimiter,
@@ -25,6 +25,7 @@ router.post(
     const name = requireString(body.name, 'Name', { max: 50 });
     const email = requireEmail(body.email);
     const password = requirePassword(body.password);
+    const campus = requireCampus(body.campus); // Round 2: required for new accounts
 
     if (await User.exists({ email })) {
       throw new HttpError(409, 'An account with this email already exists');
@@ -34,7 +35,7 @@ router.post(
 
     let user;
     try {
-      user = await User.create({ name, email, passwordHash });
+      user = await User.create({ name, email, passwordHash, campus });
     } catch (err) {
       // Two simultaneous registrations with the same email
       if (err.code === 11000) throw new HttpError(409, 'An account with this email already exists');

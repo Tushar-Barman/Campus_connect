@@ -88,7 +88,7 @@ async function waitFor(events, name, predicate = () => true, ms = 3000) {
 }
 async function register(name, letter) {
   const r = await call('POST', '/auth/register', {
-    body: { name, email: `smoke3-${stamp}-${letter}@test.local`, password: PASSWORD },
+    body: { name, email: `smoke3-${stamp}-${letter}@test.local`, password: PASSWORD, campus: 'iit-mandi' },
   });
   if (r.status !== 201) throw new Error(`Could not register ${name}: ${show(r)}`);
   return { token: r.data.token, id: r.data.user._id, name };

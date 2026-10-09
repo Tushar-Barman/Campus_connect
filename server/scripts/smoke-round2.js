@@ -286,6 +286,47 @@ async function phase3({ A, B, C, sA, sB, privId }) {
   check('reading the chat clears hasUnreadMention', afterRead.data?.conversations?.find((c) => c._id === groupId)?.hasUnreadMention === false);
 }
 
+// ── Phase 4: campuses ────────────────────────────────────────
+async function phase4({ A, B }) {
+  section('Phase 4 · campus at sign-up and campus search');
+  const list = await call('GET', '/campuses');
+  const mandi = list.data?.campuses?.find((c) => c.id === 'iit-mandi');
+  check('GET /campuses is public and lists IIT Mandi', list.status === 200 && mandi?.shortName === 'IIT Mandi' && list.data.campuses.length >= 3, show(list));
+  check('campus list has no geometry', mandi && !('center' in mandi) && !('radiusMeters' in mandi), JSON.stringify(mandi));
+
+  const base = { name: 'No Campus', password: PASSWORD };
+  const noCampus = await call('POST', '/auth/register', { body: { ...base, email: `smoke-r2-${stamp}-nc@test.local` } });
+  const badCampus = await call('POST', '/auth/register', { body: { ...base, email: `smoke-r2-${stamp}-bc@test.local`, campus: 'hogwarts' } });
+  const objCampus = await call('POST', '/auth/register', { body: { ...base, email: `smoke-r2-${stamp}-oc@test.local`, campus: { $ne: '' } } });
+  check('register without campus → 400', noCampus.status === 400, show(noCampus));
+  check('register with unknown / object campus → 400', badCampus.status === 400 && objCampus.status === 400, `${badCampus.status} ${objCampus.status}`);
+  check('register stores the campus', A.user.campus === 'iit-mandi', JSON.stringify(A.user));
+
+  const D = await register('Dev Round2', 'd', { campus: 'iit-delhi' });
+  const q = `q=Round2`;
+  const own = await call('GET', `/users/search?${q}`, { token: A.token });
+  const all = await call('GET', `/users/search?${q}&campus=all`, { token: A.token });
+  const delhi = await call('GET', `/users/search?${q}&campus=iit-delhi`, { token: A.token });
+  const bogus = await call('GET', `/users/search?${q}&campus=hogwarts`, { token: A.token });
+  const ids = (r) => (r.data?.users || []).map((u) => u._id);
+  check('search defaults to your own campus', ids(own).includes(B.id) && !ids(own).includes(D.id), JSON.stringify(ids(own)));
+  check('campus=all searches every campus', ids(all).includes(B.id) && ids(all).includes(D.id), JSON.stringify(ids(all)));
+  check('campus=<id> searches that campus only', ids(delhi).includes(D.id) && !ids(delhi).includes(B.id), JSON.stringify(ids(delhi)));
+  check('unknown campus filter → 400', bogus.status === 400, show(bogus));
+  check('results carry the campus', (all.data?.users || []).find((u) => u._id === D.id)?.campus === 'iit-delhi');
+
+  const cross = await call('POST', '/conversations', { token: A.token, body: { userId: D.id } });
+  check('cross-campus chats still work', cross.status === 201 || cross.status === 200, show(cross));
+
+  const badProfile = await call('PUT', '/users/profile', { token: D.token, body: { campus: 'nowhere' } });
+  check('PUT /profile rejects an unknown campus', badProfile.status === 400, show(badProfile));
+  const moved = await call('PUT', '/users/profile', { token: D.token, body: { campus: 'iit-mandi' } });
+  check('PUT /profile changes the campus', moved.status === 200 && moved.data?.user?.campus === 'iit-mandi', show(moved));
+  const nowOwn = await call('GET', `/users/search?${q}`, { token: A.token });
+  check('…and they now show up in own-campus search', ids(nowOwn).includes(D.id));
+  return { D };
+}
+
 async function main() {
   console.log(`\nCampusConnect Round 2 smoke test → ${BASE}`);
   try {
@@ -309,9 +350,11 @@ async function main() {
     await phase1(ctx);
     await phase2(ctx);
     await phase3(ctx);
+    Object.assign(ctx, await phase4(ctx));
   } finally {
     [sA, sB, sC].forEach((s) => s.socket.close());
-    const ids = [A.id, B.id, C.id];
+    // Every user this run created, including ones made inside a phase.
+    const ids = (await User.find({ email: new RegExp(`^smoke-r2-${stamp}-`) }).select('_id').lean()).map((u) => u._id);
     const convs = await Conversation.find({ participants: { $in: ids } }).select('_id').lean();
     await Message.deleteMany({ conversationId: { $in: convs.map((c) => c._id) } });
     await Conversation.deleteMany({ _id: { $in: convs.map((c) => c._id) } });

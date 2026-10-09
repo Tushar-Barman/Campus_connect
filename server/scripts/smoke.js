@@ -78,32 +78,32 @@ async function main() {
 
   // ── Register ──────────────────────────────────────────────
   console.log('\nRegister');
-  const regA = await call('POST', '/auth/register', { body: { name: 'Smoke Alice', email: emails[0].toUpperCase(), password: PASSWORD } });
+  const regA = await call('POST', '/auth/register', { body: { name: 'Smoke Alice', email: emails[0].toUpperCase(), password: PASSWORD, campus: 'iit-mandi' } });
   check('register → 201 with token and user', regA.status === 201 && regA.data?.token && regA.data?.user?._id, show(regA));
   check('email stored lowercase', regA.data?.user?.email === emails[0], regA.data?.user?.email);
   check('no passwordHash in response', regA.data?.user && !('passwordHash' in regA.data.user));
   check('no starredConversations in response', regA.data?.user && !('starredConversations' in regA.data.user));
-  const regB = await call('POST', '/auth/register', { body: { name: 'Smoke Bob', email: emails[1], password: PASSWORD } });
-  const regC = await call('POST', '/auth/register', { body: { name: 'Smoke Eve', email: emails[2], password: PASSWORD } });
+  const regB = await call('POST', '/auth/register', { body: { name: 'Smoke Bob', email: emails[1], password: PASSWORD, campus: 'iit-mandi' } });
+  const regC = await call('POST', '/auth/register', { body: { name: 'Smoke Eve', email: emails[2], password: PASSWORD, campus: 'iit-mandi' } });
   check('second and third users register', regB.status === 201 && regC.status === 201, `${show(regB)} | ${show(regC)}`);
 
-  const dup = await call('POST', '/auth/register', { body: { name: 'Dup', email: emails[0], password: PASSWORD } });
+  const dup = await call('POST', '/auth/register', { body: { name: 'Dup', email: emails[0], password: PASSWORD, campus: 'iit-mandi' } });
   check('duplicate email → 409', dup.status === 409 && isErrorShape(dup), show(dup));
   const shortPw = await call('POST', '/auth/register', { body: { name: 'X', email: `x-${stamp}@test.local`, password: 'short' } });
   check('password < 8 chars → 400', shortPw.status === 400 && isErrorShape(shortPw), show(shortPw));
-  const badEmail = await call('POST', '/auth/register', { body: { name: 'X', email: 'not-an-email', password: PASSWORD } });
+  const badEmail = await call('POST', '/auth/register', { body: { name: 'X', email: 'not-an-email', password: PASSWORD, campus: 'iit-mandi' } });
   check('invalid email → 400', badEmail.status === 400 && isErrorShape(badEmail), show(badEmail));
-  const noName = await call('POST', '/auth/register', { body: { name: '   ', email: `y-${stamp}@test.local`, password: PASSWORD } });
+  const noName = await call('POST', '/auth/register', { body: { name: '   ', email: `y-${stamp}@test.local`, password: PASSWORD, campus: 'iit-mandi' } });
   check('blank name → 400', noName.status === 400 && isErrorShape(noName), show(noName));
-  const nosqlInj = await call('POST', '/auth/register', { body: { name: 'X', email: { $gt: '' }, password: PASSWORD } });
+  const nosqlInj = await call('POST', '/auth/register', { body: { name: 'X', email: { $gt: '' }, password: PASSWORD, campus: 'iit-mandi' } });
   check('object instead of email string → 400', nosqlInj.status === 400, show(nosqlInj));
 
   // ── Login ─────────────────────────────────────────────────
   console.log('\nLogin');
-  const login = await call('POST', '/auth/login', { body: { email: `  ${emails[0].toUpperCase()} `, password: PASSWORD } });
+  const login = await call('POST', '/auth/login', { body: { email: `  ${emails[0].toUpperCase()} `, password: PASSWORD, campus: 'iit-mandi' } });
   check('login (any case, spaces) → 200 with token', login.status === 200 && login.data?.token, show(login));
   const wrongPw = await call('POST', '/auth/login', { body: { email: emails[0], password: 'wrongpassword' } });
-  const noUser = await call('POST', '/auth/login', { body: { email: `nobody-${stamp}@test.local`, password: PASSWORD } });
+  const noUser = await call('POST', '/auth/login', { body: { email: `nobody-${stamp}@test.local`, password: PASSWORD, campus: 'iit-mandi' } });
   check('wrong password → 401', wrongPw.status === 401 && isErrorShape(wrongPw), show(wrongPw));
   check('unknown email → 401 with the same message', noUser.status === 401 && noUser.data?.error === wrongPw.data?.error, show(noUser));
   const injLogin = await call('POST', '/auth/login', { body: { email: { $ne: null }, password: { $ne: null } } });

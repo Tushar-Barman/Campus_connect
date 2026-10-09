@@ -128,19 +128,25 @@ Base URL: `${VITE_API_URL}/api`. All routes except register/login need `Authoriz
 ### Auth
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| POST | `/auth/register` | `{ name, email, password }` | `{ token, user }` |
+| POST | `/auth/register` | `{ name, email, password, campus }` **(Round 2: `campus` required, a valid campus id)** | `{ token, user }` |
 | POST | `/auth/login` | `{ email, password }` | `{ token, user }` |
 | POST | `/auth/logout` | — | `{ ok: true }` (client deletes the token) |
 | GET | `/auth/me` | — | `{ user }` |
 
 Password: minimum 8 characters. Email normalised to lowercase.
+**(Round 2)** `user` in register, login and `/auth/me` responses also has `campus` and the owner's own `settings`.
+
+### Campuses (Round 2)
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/campuses` | **Public** (no token). → `{ campuses: [{ id, name, shortName, city }] }`. The list lives in `server/src/config/campuses.js`; centres and radii stay on the server. |
 
 ### Users
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/users/search?q=` | Name or email match, excludes yourself, max 20 → `{ users }` |
+| GET | `/users/search?q=&campus=` | Name or email match, excludes yourself, max 20 → `{ users }`. **(Round 2)** `campus` defaults to your own campus; `all` = every campus; any other value must be a campus id (else 400). Campus only affects discovery: existing cross-campus chats keep working. |
 | GET | `/users/:id` | Public profile → `{ user }` |
-| PUT | `/users/profile` | `{ name?, bio? }` → `{ user }` |
+| PUT | `/users/profile` | `{ name?, bio?, campus? }` → `{ user }` (**Round 2:** `campus` must be a valid campus id) |
 | POST | `/users/profile-picture` | multipart field `picture` (Phase 3) |
 | DELETE | `/users/profile-picture` | Phase 3 |
 

@@ -9,6 +9,8 @@ import { Alert, EmptyState, ErrorState, Skeleton } from '../ui/Feedback.jsx';
 import ConversationItem from './ConversationItem.jsx';
 import PeopleResults from './PeopleResults.jsx';
 import CreateGroupModal from '../group/CreateGroupModal.jsx';
+import CampusScopeChip from '../campus/CampusScopeChip.jsx';
+import { useCampuses } from '../../lib/campuses.js';
 import { useConversationList } from '../../context/ConversationsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useDebouncedValue } from '../../lib/useDebouncedValue.js';
@@ -53,6 +55,9 @@ export default function Sidebar() {
   const [startError, setStartError] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
   const [creatingGroup, setCreatingGroup] = useState(false);
+  // Round 2: '' = my campus, a campus id, or 'all'. Only affects finding new people.
+  const [campusScope, setCampusScope] = useState('');
+  const { campuses } = useCampuses();
 
   const { conversations, loading, error } = list;
 
@@ -107,8 +112,18 @@ export default function Sidebar() {
       <>
         {matching.length ? <Section label="Chats">{renderItems(matching)}</Section> : null}
         <Section label="People">
+          <div className="px-3 pb-1.5">
+            <CampusScopeChip campuses={campuses} myCampus={user?.campus} value={campusScope} onChange={setCampusScope} />
+          </div>
           {startError ? <Alert className="mx-3 mb-2">{startError}</Alert> : null}
-          <PeopleResults query={debouncedQuery} onPick={pickPerson} startingId={startingId} />
+          <PeopleResults
+            query={debouncedQuery}
+            onPick={pickPerson}
+            startingId={startingId}
+            campus={campusScope || undefined}
+            myCampus={user?.campus}
+            campuses={campuses}
+          />
         </Section>
       </>
     );

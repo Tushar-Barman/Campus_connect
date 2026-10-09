@@ -35,7 +35,7 @@ async function register(label) {
   const email = `smoke.${label}.${Date.now()}@test.local`;
   const { status, data } = await api('/auth/register', {
     method: 'POST',
-    body: { name: `Smoke ${label.toUpperCase()}`, email, password: 'password123' },
+    body: { name: `Smoke ${label.toUpperCase()}`, email, password: 'password123', campus: 'iit-mandi' },
   });
   if (!data.token) throw new Error(`register ${label} failed (${status}): ${data.error}`);
   return data;

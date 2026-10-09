@@ -7,6 +7,7 @@ import { useSocketEvent } from '@p3/hooks/useSocketEvent.js';
 import Sidebar from '../components/sidebar/Sidebar.jsx';
 import ChatWindow from '../components/chat/ChatWindow.jsx';
 import ConnectionBanner from '../components/chat/ConnectionBanner.jsx';
+import CampusPrompt from '../components/campus/CampusPrompt.jsx';
 import { EmptyState, ErrorState, Spinner } from '../components/ui/Feedback.jsx';
 import { buttonClass } from '../components/ui/Button.jsx';
 import { useToast } from '../components/ui/Toast.jsx';
@@ -136,6 +137,7 @@ export default function Chat() {
         </aside>
         <main className={`${showChatOnMobile ? 'flex' : 'hidden'} min-w-0 flex-1 flex-col md:flex`}>{main}</main>
       </div>
+      <CampusPrompt />
     </ConversationsProvider>
   );
 }

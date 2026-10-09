@@ -1,4 +1,5 @@
 import { HttpError } from './http.js';
+import { isCampusId } from '../config/campuses.js';
 
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -25,6 +26,13 @@ export function requireEmail(value) {
   const email = requireString(value, 'Email', { max: 254 }).toLowerCase();
   if (!EMAIL_RE.test(email)) throw new HttpError(400, 'Email is not valid');
   return email;
+}
+
+/** Round 2: a campus id from config/campuses.js, or a 400. */
+export function requireCampus(value) {
+  if (typeof value !== 'string' || !value) throw new HttpError(400, 'Choose your campus');
+  if (!isCampusId(value)) throw new HttpError(400, 'Unknown campus');
+  return value;
 }
 
 /** 8–72 characters. bcrypt ignores everything after 72 bytes, so longer is rejected. */

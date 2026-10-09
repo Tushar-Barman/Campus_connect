@@ -5,6 +5,8 @@ import Button from '../components/ui/Button.jsx';
 import Input from '../components/ui/Input.jsx';
 import { Alert } from '../components/ui/Feedback.jsx';
 import PictureUploader from '../components/media/PictureUploader.jsx';
+import CampusSelect from '../components/campus/CampusSelect.jsx';
+import { useCampuses } from '../lib/campuses.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../components/ui/Toast.jsx';
 import { getErrorMessage, usersApi } from '../lib/api.js';
@@ -16,12 +18,16 @@ export default function Profile() {
   const { user, updateUser } = useAuth();
   const toast = useToast();
 
-  const [form, setForm] = useState({ name: user?.name || '', bio: user?.bio || '' });
+  const { campuses } = useCampuses();
+  const [form, setForm] = useState({ name: user?.name || '', bio: user?.bio || '', campus: user?.campus || '' });
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const dirty = form.name.trim() !== (user?.name || '') || form.bio.trim() !== (user?.bio || '');
+  const dirty =
+    form.name.trim() !== (user?.name || '') ||
+    form.bio.trim() !== (user?.bio || '') ||
+    form.campus !== (user?.campus || '');
 
   const save = async (event) => {
     event.preventDefault();
@@ -35,9 +41,13 @@ export default function Profile() {
     setSaving(true);
     setServerError('');
     try {
-      const { user: updated } = await usersApi.updateProfile({ name: form.name.trim(), bio: form.bio.trim() });
+      const { user: updated } = await usersApi.updateProfile({
+        name: form.name.trim(),
+        bio: form.bio.trim(),
+        ...(form.campus ? { campus: form.campus } : {}),
+      });
       updateUser(updated);
-      setForm({ name: updated.name, bio: updated.bio || '' });
+      setForm({ name: updated.name, bio: updated.bio || '', campus: updated.campus || '' });
       toast.success('Profile saved');
     } catch (err) {
       setServerError(getErrorMessage(err, 'Could not save your profile.'));
@@ -116,6 +126,12 @@ export default function Profile() {
                 {errors.bio || `${form.bio.length}/${BIO_MAX}`}
               </p>
             </div>
+            <CampusSelect
+              campuses={campuses}
+              value={form.campus}
+              onChange={(campus) => setForm((f) => ({ ...f, campus }))}
+              hint="People search starts with this campus."
+            />
             <Input label="Email" icon={Mail} value={user?.email || ''} disabled hint="Your email can't be changed." />
             <Button type="submit" fullWidth size="lg" loading={saving} disabled={!dirty}>
               {saving ? 'Saving' : 'Save changes'}

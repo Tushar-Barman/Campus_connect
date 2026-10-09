@@ -8,6 +8,7 @@ import userRoutes from './routes/users.js';
 import conversationRoutes from './routes/conversations.js';
 import messageRoutes from './routes/messages.js';
 import aiRoutes from './routes/ai.js';
+import campusRoutes from './routes/campuses.js';
 import { notFound, errorHandler } from './middleware/error.js';
 import { HttpError } from './utils/http.js';
 
@@ -47,6 +48,7 @@ export function createApp() {
   app.use('/api/conversations', conversationRoutes);
   app.use('/api/messages', messageRoutes);
   app.use('/api/ai', aiRoutes);
+  app.use('/api/campuses', campusRoutes); // Round 2
 
   app.use(notFound);
   app.use(errorHandler);

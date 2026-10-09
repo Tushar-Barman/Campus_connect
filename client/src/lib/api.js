@@ -78,7 +78,8 @@ export const authApi = {
 };
 
 export const usersApi = {
-  search: (q, config) => data(api.get('/users/search', { params: { q }, ...config })),
+  // Round 2: campus = a campus id or 'all'; omitted = the caller's own campus.
+  search: (q, config, campus) => data(api.get('/users/search', { params: { q, ...(campus ? { campus } : {}) }, ...config })),
   getById: (id) => data(api.get(`/users/${id}`)),
   updateProfile: (body) => data(api.put('/users/profile', body)),
   uploadPicture: (file, onProgress) =>
@@ -89,6 +90,10 @@ export const usersApi = {
       }),
     ),
   removePicture: () => data(api.delete('/users/profile-picture')),
+};
+
+export const campusesApi = {
+  list: () => data(api.get('/campuses')),
 };
 
 export const conversationsApi = {

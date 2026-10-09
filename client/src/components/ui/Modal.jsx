@@ -2,13 +2,14 @@ import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-export default function Modal({ open, onClose, title, children, footer, size = 'md' }) {
+// dismissible = false: no ✕, Esc or backdrop close (for a step the user must finish).
+export default function Modal({ open, onClose, title, children, footer, size = 'md', dismissible = true }) {
   const titleId = useId();
   const panelRef = useRef(null);
   // Keep the latest onClose without re-running the open/focus effect on every render
   // (re-running it would steal focus from inputs inside after each keystroke).
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  onCloseRef.current = dismissible ? onClose : () => {};
 
   useEffect(() => {
     if (!open) return undefined;
@@ -33,7 +34,7 @@ export default function Modal({ open, onClose, title, children, footer, size = '
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-ink/40 animate-fade-in" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-ink/40 animate-fade-in" onClick={dismissible ? onClose : undefined} aria-hidden="true" />
       <div
         ref={panelRef}
         role="dialog"
@@ -44,14 +45,16 @@ export default function Modal({ open, onClose, title, children, footer, size = '
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 id={titleId} className="text-base font-semibold">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close dialog"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-subtle hover:bg-surface-muted hover:text-ink"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
+          {dismissible ? (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close dialog"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-subtle hover:bg-surface-muted hover:text-ink"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
         <div className="px-5 py-4">{children}</div>
         {footer ? <div className="flex justify-end gap-2 border-t border-border px-5 py-3">{footer}</div> : null}
