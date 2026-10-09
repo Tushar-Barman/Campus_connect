@@ -19,6 +19,7 @@ import {
 import { formatTime } from '../../lib/format.js';
 import { canDeleteForEveryone, canEdit, isDeleted } from '../../lib/messageRules.js';
 import { useBubbleGestures } from '../../lib/useBubbleGestures.js';
+import { isEmojiOnly } from '../../lib/emoji.js';
 import { idOf, replySnippet } from '../../lib/conversation.js';
 import VoicePlayer from '../media/VoicePlayer.jsx';
 import FileCard from '../media/FileCard.jsx';
@@ -35,9 +36,11 @@ const TICKS = {
   failed: { Icon: AlertCircle, mine: 'text-white', label: 'Failed to send' },
 };
 
-export function ReceiptTicks({ status }) {
+// `plain`: drawn on the canvas instead of an accent bubble (emoji-only messages).
+export function ReceiptTicks({ status, plain = false }) {
   const tick = TICKS[status] || TICKS.sent;
-  return <tick.Icon className={`h-3.5 w-3.5 ${tick.mine}`} aria-label={tick.label} role="img" />;
+  const tone = plain && status !== 'read' ? 'text-ink-subtle' : tick.mine;
+  return <tick.Icon className={`h-3.5 w-3.5 ${tone}`} aria-label={tick.label} role="img" />;
 }
 
 // Items are worked out when the menu opens, so the edit/delete time windows are current.
@@ -246,6 +249,8 @@ function MessageBubble({
   const items = menuOpen ? menuItems({ message, myId, isPinned, onPin, onUnpin, onEdit, onDelete, onReply, onInfo }) : null;
   const hasMenu = confirmed && (!deleted || Boolean(onDelete));
   const canReply = confirmed && !deleted && Boolean(onReply);
+  // Round 2: 1–3 emoji and nothing else → large, without a bubble.
+  const emojiOnly = message.messageType === 'text' && !deleted && !failed && message.replyTo === undefined && isEmojiOnly(message.text);
   const gestures = useBubbleGestures({
     onLongPress: hasMenu ? () => setMenuOpen(true) : null,
     onSwipeRight: canReply ? () => onReply(message) : null,
@@ -262,8 +267,10 @@ function MessageBubble({
           onDoubleClick={canReply ? () => onReply(message) : undefined}
           style={gestures.offset ? { transform: `translateX(${gestures.offset}px)` } : undefined}
           className={[
-            'touch-pan-y px-3.5 py-2 text-sm shadow-sm transition-shadow duration-300 rounded-bubble',
-            mine ? (failed ? 'bg-danger text-white' : 'bg-brand-600 text-white') : 'bg-surface text-ink',
+            'touch-pan-y transition-shadow duration-300 rounded-bubble',
+            emojiOnly
+              ? 'px-1 py-0.5 text-4xl leading-tight text-ink'
+              : `px-3.5 py-2 text-sm shadow-sm ${mine ? (failed ? 'bg-danger text-white' : 'bg-brand-600 text-white') : 'bg-surface text-ink'}`,
             mine && !groupedWithPrevious ? 'rounded-br-md' : '',
             !mine && !groupedWithPrevious ? 'rounded-bl-md' : '',
             status === 'sending' || status === 'uploading' ? 'opacity-80' : '',
@@ -285,11 +292,11 @@ function MessageBubble({
               <div className="h-full bg-white transition-[width] duration-200" style={{ width: `${Math.round((message.progress || 0) * 100)}%` }} />
             </div>
           ) : null}
-          <span className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${mine ? 'text-on-accent-muted' : 'text-ink-subtle'}`}>
+          <span className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${mine && !emojiOnly ? 'text-on-accent-muted' : 'text-ink-subtle'}`}>
             {isPinned && !deleted ? <Pin className="h-3 w-3" aria-label="Pinned" role="img" /> : null}
             {message.editedAt && !deleted ? <span>edited</span> : null}
             <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
-            {mine && !deleted ? <ReceiptTicks status={status} /> : null}
+            {mine && !deleted ? <ReceiptTicks status={status} plain={emojiOnly} /> : null}
           </span>
         </div>
         {failed ? (

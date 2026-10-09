@@ -6,6 +6,7 @@ import Avatar from '../ui/Avatar.jsx';
 import { idOf, replySnippet } from '../../lib/conversation.js';
 import { useMentionAutocomplete } from '../../lib/useMentionAutocomplete.js';
 import { ATTACH_ACCEPT } from '../../lib/media.js';
+import EmojiButton from './EmojiButton.jsx';
 import { formatDuration } from '../../lib/media.js';
 
 export const MESSAGE_MAX = 4000;
@@ -219,6 +220,21 @@ export default function Composer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingId]);
 
+  // Round 2: put an emoji where the caret is (or at the end) and keep typing from there.
+  const insertEmoji = (emoji) => {
+    const el = ref.current;
+    const start = el?.selectionStart ?? text.length;
+    const end = el?.selectionEnd ?? text.length;
+    setText((current) => current.slice(0, start) + emoji + current.slice(end));
+    onInput();
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      const caret = start + emoji.length;
+      el.setSelectionRange(caret, caret);
+    });
+  };
+
   const flashError = (message) => {
     setShownError(message);
     setTimeout(() => setShownError(''), 4000);
@@ -287,6 +303,7 @@ export default function Composer({
       ) : null}
       <div className="flex items-end gap-2">
         {onAttachFiles && !editingId && !isRecording ? <AttachMenu onFiles={onAttachFiles} extraItems={attachItems} /> : null}
+        {!isRecording ? <EmojiButton onPick={insertEmoji} /> : null}
         {isRecording ? (
           <RecordingBar elapsedMs={elapsedMs} maxDurationMs={maxDurationMs} />
         ) : (
