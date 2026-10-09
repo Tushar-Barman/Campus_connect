@@ -29,11 +29,11 @@ export function EmptyState({ icon: Icon, title, description, action, className =
   return (
     <div className={`flex flex-col items-center justify-center px-6 py-10 text-center animate-fade-in ${className}`}>
       {Icon ? (
-        <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-accent">
+        <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-100 to-brand-50 text-accent shadow-card ring-1 ring-brand-200">
           <Icon className="h-7 w-7" aria-hidden="true" />
         </span>
       ) : null}
-      <h3 className="text-base font-semibold text-ink">{title}</h3>
+      <h3 className="font-display text-lg font-bold text-ink">{title}</h3>
       {description ? <p className="mt-1 max-w-xs text-sm text-ink-muted">{description}</p> : null}
       {action ? <div className="mt-5">{action}</div> : null}
     </div>

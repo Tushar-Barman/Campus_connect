@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { MessageCircle, Mic, Sparkles, Users } from 'lucide-react';
 import Logo from './ui/Logo.jsx';
+import Ridge from './ui/Ridge.jsx';
 
 const POINTS = [
   { icon: MessageCircle, text: 'Instant one-to-one chats with read receipts' },
@@ -11,15 +12,16 @@ const POINTS = [
 
 export default function AuthLayout({ title, subtitle, children, footer }) {
   return (
-    <div className="flex min-h-dvh bg-canvas">
-      <aside className="relative hidden w-[44%] max-w-xl flex-col justify-between overflow-hidden bg-accent-strongest p-10 text-white lg:flex">
+    <div className="cc-topo flex min-h-dvh bg-canvas">
+      <aside className="cc-topo cc-topo-strong relative hidden w-[44%] max-w-xl flex-col justify-between overflow-hidden bg-accent-strongest p-10 text-white lg:flex">
+        <Ridge className="pointer-events-none absolute inset-x-0 bottom-0 h-40 w-full text-white/10" />
         <div className="pointer-events-none absolute -right-24 -bottom-24 h-96 w-96 rounded-full bg-brand-600/40 blur-3xl" aria-hidden="true" />
         <div className="pointer-events-none absolute top-1/3 -left-20 h-72 w-72 rounded-full bg-brand-500/20 blur-3xl" aria-hidden="true" />
         <Link to="/" className="relative w-fit rounded-xl">
           <Logo inverted />
         </Link>
         <div className="relative">
-          <h2 className="text-3xl leading-tight font-extrabold tracking-tight">
+          <h2 className="text-4xl leading-tight font-extrabold tracking-tight">
             Every conversation on campus, in one place.
           </h2>
           <ul className="mt-8 space-y-4">

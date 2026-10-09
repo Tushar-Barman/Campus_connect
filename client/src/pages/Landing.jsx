@@ -2,6 +2,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { ArrowRight, CheckCheck, MessageCircle, Mic, ShieldCheck, Sparkles, Users } from 'lucide-react';
 import Logo from '../components/ui/Logo.jsx';
 import Avatar from '../components/ui/Avatar.jsx';
+import Ridge from '../components/ui/Ridge.jsx';
 import { buttonClass } from '../components/ui/Button.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -63,13 +64,14 @@ export default function Landing() {
       </header>
 
       <main>
-        <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 pt-10 pb-16 sm:px-6 lg:grid-cols-2 lg:pt-20">
+        <section className="cc-topo relative">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 pt-10 pb-28 sm:px-6 lg:grid-cols-2 lg:pt-20">
           <div className="animate-slide-up">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
               <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
               Made for IIT Mandi
             </span>
-            <h1 className="mt-5 text-4xl leading-[1.1] font-extrabold tracking-tight sm:text-5xl">
+            <h1 className="mt-5 text-4xl leading-[1.05] font-extrabold tracking-tight sm:text-6xl">
               Your campus, in one <span className="text-accent">conversation</span>.
             </h1>
             <p className="mt-5 max-w-lg text-base text-ink-muted sm:text-lg">
@@ -87,13 +89,15 @@ export default function Landing() {
             </div>
           </div>
           <PreviewCard />
+        </div>
+        <Ridge className="pointer-events-none absolute inset-x-0 bottom-0 h-24 w-full text-brand-200 sm:h-32" />
         </section>
 
-        <section className="border-t border-border bg-surface">
+        <section className="relative bg-surface">
           <div className="mx-auto grid max-w-6xl gap-4 px-4 py-14 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
             {FEATURES.map(({ icon: Icon, title, text }) => (
-              <article key={title} className="rounded-card border border-border bg-canvas p-5">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-100 text-brand-700">
+              <article key={title} className="rounded-card border border-border bg-canvas p-5 shadow-card transition-transform duration-200 hover:-translate-y-0.5">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-100 to-brand-50 text-brand-700 ring-1 ring-brand-200">
                   <Icon className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <h2 className="mt-4 text-sm font-bold">{title}</h2>

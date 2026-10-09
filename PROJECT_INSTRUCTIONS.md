@@ -169,6 +169,7 @@ Every step re-reads the current state, so it's safe to retry after a partial fai
 | POST | `/conversations` | `{ userId }` → find-or-create private chat → `{ conversation, created }` |
 | GET | `/conversations/:id` | → `{ conversation }` |
 | POST / DELETE | `/conversations/:id/star` | Star / unstar for the current user only |
+| PUT | `/conversations/:id/background` | **(Round 2)** `{ background }`: one of the presets `mist, dawn, pine, dusk, sand, contour, dots, grid`, a `#rrggbb` colour, or `""` to reset → `{ conversationId, background }`. Stored only in **your own** `chatBackgrounds` map. Returned as `background` on each conversation item, and your other tabs get `conversation_background`. Anything else is 400. |
 | POST | `/conversations/group` | `{ name, memberIds[] }` (Phase 3) |
 | PUT | `/conversations/:id` | `{ groupName?, groupPicture? }` admin only (Phase 3) |
 | POST | `/conversations/:id/members` | `{ userId }` admin only (Phase 3) |
@@ -240,6 +241,7 @@ Rules for answering a request:
 | `message_pinned` | `{ message }` |
 | `message_unpinned` | `{ conversationId, messageId }` |
 | `group_member_added` / `group_member_removed` | `{ conversationId, userId }` (Phase 3) |
+| `conversation_background` | `{ conversationId, background }` (Round 2). Sent only to your own tabs after you change a chat's wallpaper. |
 | `block_changed` | `{ userId, blocked }` (Round 2). Sent only to the blocker's own tabs: update `blockedByMe` on the private chat with that user. |
 | `conversation_removed` | `{ conversationId }` (Round 2). The chat no longer exists (the other person deleted their account): remove it from the list and leave it if it's open. |
 | `message_updated` | `{ message }` (Round 2). An existing message changed: it was edited, deleted for everyone, or a location request was answered. The payload is serialized **per viewer**, so it's emitted to each participant separately. Replace the message by `_id`, and update the sidebar preview if it's the chat's `lastMessage`. For "delete for me", only the user's own tabs get `{ message: { _id, conversationId, hidden: true } }`: remove it from the list. |

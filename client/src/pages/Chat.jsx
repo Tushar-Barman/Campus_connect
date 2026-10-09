@@ -122,7 +122,7 @@ export default function Chat() {
     );
   } else {
     main = (
-      <div className="flex h-full flex-col bg-canvas">
+      <div className="cc-topo flex h-full flex-col bg-canvas">
         <ConnectionBanner />
         <EmptyState
           icon={MessagesSquare}
