@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/*
+  CampusConnect design tokens.
+  This is the ONLY place raw colour values are allowed.
+  Each token becomes a Tailwind utility, e.g. --color-brand-600 -> bg-brand-600,
+  --radius-card -> rounded-card, --shadow-pop -> shadow-pop.
+*/
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Brand: Himalayan teal */
+  --color-brand-50: #effaf8;
+  --color-brand-100: #d7f0ec;
+  --color-brand-200: #b0e0d9;
+  --color-brand-300: #7fc9bf;
+  --color-brand-400: #4eaea2;
+  --color-brand-500: #2f9387;
+  --color-brand-600: #22766d;
+  --color-brand-700: #1f5f59;
+  --color-brand-800: #1d4d49;
+  --color-brand-900: #1b403d;
+
+  /* Neutrals */
+  --color-canvas: #f4f7f6;
+  --color-surface: #ffffff;
+  --color-surface-muted: #eef2f1;
+  --color-border: #dfe6e4;
+  --color-border-strong: #c5d0cd;
+  --color-ink: #0f1f1d;
+  --color-ink-muted: #4b5b59;
+  --color-ink-subtle: #8a9896;
+
+  /* Semantic */
+  --color-success: #16a34a;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
+  --color-star: #f5a524;
+  --color-read: #38bdf8;
+  --color-warning-soft: #fff7e6;
+  --color-warning-ink: #8a5300;
+
+  /* Avatar fallback tones (background) */
+  --color-tone-1: #d7f0ec;
+  --color-tone-2: #fde7c7;
+  --color-tone-3: #e0e7ff;
+  --color-tone-4: #fce4ec;
+  --color-tone-5: #e8f5d0;
+
+  /* Shape */
+  --radius-card: 1rem;
+  --radius-bubble: 1.125rem;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgb(15 31 29 / 0.04), 0 4px 16px rgb(15 31 29 / 0.06);
+  --shadow-pop: 0 12px 40px rgb(15 31 29 / 0.18);
+
+  /* Motion */
+  --animate-fade-in: fade-in 180ms ease-out;
+  --animate-slide-up: slide-up 200ms ease-out;
+  --animate-slide-in: slide-in 220ms ease-out;
+  --animate-pulse-dot: pulse-dot 1.2s ease-in-out infinite;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

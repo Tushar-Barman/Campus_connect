@@ -1,0 +1,36 @@
+{
+  "name": "campusconnect-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "smoke": "node scripts/smoke.js",
+    "smoke:part2": "node scripts/smoke-part2.js",
+    "smoke:part3": "node scripts/smoke-part3.js",
+    "smoke:realtime": "node scripts/smoke-realtime.js",
+    "smoke:all": "node scripts/smoke.js && node scripts/smoke-part2.js && node scripts/smoke-part3.js"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.5.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.0",
+    "multer": "^2.0.2",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}

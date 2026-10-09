@@ -1,0 +1,116 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import api from '../lib/api.js';
+import { useSocketEvent, useSocketReconnect } from './useSocketEvent.js';
+import { idOf } from './messageState.js';
+
+// The sidebar's conversation list, kept live: new messages move a chat to the
+// top and bump its unread count, new chats/groups appear, removed groups vanish.
+export function useConversations(currentUserId, openConversationId) {
+  const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const listRef = useRef(conversations);
+  const openRef = useRef(openConversationId);
+  const requestRef = useRef(0);
+
+  useEffect(() => {
+    listRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    openRef.current = openConversationId;
+  }, [openConversationId]);
+
+  const load = useCallback(async () => {
+    const requestId = ++requestRef.current;
+    setError(null);
+    try {
+      const { data } = await api.get('/conversations');
+      if (requestId === requestRef.current) setConversations(data.conversations);
+    } catch (err) {
+      if (requestId === requestRef.current) setError(err.response?.data?.error ?? 'Could not load conversations');
+    } finally {
+      if (requestId === requestRef.current) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useSocketReconnect(load);
+
+  const patchConversation = useCallback((conversationId, patch) => {
+    setConversations((list) => list.map((c) => (idOf(c) === String(conversationId) ? { ...c, ...patch } : c)));
+  }, []);
+
+  // Opening a chat clears its unread badge.
+  useEffect(() => {
+    if (openConversationId) patchConversation(openConversationId, { unreadCount: 0 });
+  }, [openConversationId, patchConversation]);
+
+  useSocketEvent('new_message', ({ message } = {}) => {
+    if (!message) return;
+    const cid = String(message.conversationId);
+    if (!listRef.current.some((c) => idOf(c) === cid)) {
+      load(); // a chat we haven't loaded yet
+      return;
+    }
+    const fromOther = idOf(message.senderId) !== String(currentUserId);
+    const seen = cid === String(openRef.current) && document.visibilityState === 'visible';
+
+    setConversations((list) => {
+      const index = list.findIndex((c) => idOf(c) === cid);
+      if (index === -1) return list;
+      const current = list[index];
+      const updated = {
+        ...current,
+        lastMessage: message,
+        lastMessageAt: message.createdAt,
+        unreadCount: fromOther && !seen ? (current.unreadCount ?? 0) + 1 : (current.unreadCount ?? 0),
+      };
+      return [updated, ...list.slice(0, index), ...list.slice(index + 1)];
+    });
+  });
+
+  useSocketEvent('conversation_created', ({ conversation } = {}) => {
+    if (!conversation) return;
+    setConversations((list) =>
+      list.some((c) => idOf(c) === idOf(conversation))
+        ? list
+        : [{ isStarred: false, unreadCount: 0, ...conversation }, ...list],
+    );
+  });
+
+  useSocketEvent('group_member_added', () => load());
+
+  // P1 sends this after a group rename, picture change or admin change. The payload
+  // leaves out per-user fields, so keep this user's own isStarred and unreadCount.
+  useSocketEvent('conversation_updated', ({ conversation } = {}) => {
+    if (!conversation) return;
+    setConversations((list) =>
+      list.map((c) =>
+        idOf(c) === idOf(conversation)
+          ? { ...c, ...conversation, isStarred: c.isStarred, unreadCount: c.unreadCount }
+          : c,
+      ),
+    );
+  });
+
+  useSocketEvent('group_member_removed', ({ conversationId, userId } = {}) => {
+    if (String(userId) === String(currentUserId)) {
+      setConversations((list) => list.filter((c) => idOf(c) !== String(conversationId)));
+      return;
+    }
+    setConversations((list) =>
+      list.map((c) =>
+        idOf(c) === String(conversationId)
+          ? { ...c, participants: c.participants.filter((p) => idOf(p) !== String(userId)) }
+          : c,
+      ),
+    );
+  });
+
+  return { conversations, loading, error, reload: load, patchConversation };
+}
