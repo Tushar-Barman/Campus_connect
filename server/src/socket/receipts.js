@@ -1,4 +1,4 @@
-import { loadConversationForUser, Conversation, Message, getReceiptsOff } from './deps.js';
+import { loadConversationForUser, Conversation, Message, getReceiptsOff, getBlockRelations } from './deps.js';
 import { emitToUsers } from './emit.js';
 import { idOf, isObjectId, othersIn } from './validate.js';
 
@@ -7,9 +7,12 @@ const logError = (label) => (err) => {
 };
 
 // Tells each sender which of their messages just reached `userId`.
-function notifySenders(messages, userId, at) {
+// Round 2: senders in a block relation with `userId` are not told.
+async function notifySenders(messages, userId, at) {
+  const blocked = await getBlockRelations(userId);
   const groups = new Map();
   for (const m of messages) {
+    if (blocked.has(idOf(m.senderId))) continue;
     const key = `${idOf(m.conversationId)}|${idOf(m.senderId)}`;
     if (!groups.has(key)) groups.set(key, { conversationId: idOf(m.conversationId), senderId: idOf(m.senderId), messageIds: [] });
     groups.get(key).messageIds.push(idOf(m._id));
@@ -39,7 +42,7 @@ export async function deliverPending(socket) {
     { ...filter, _id: { $in: pending.map((m) => m._id) } },
     { $push: { deliveredTo: { user: userId, at } } },
   );
-  notifySenders(pending, userId, at);
+  await notifySenders(pending, userId, at);
 }
 
 export function registerReceiptHandlers(socket) {
@@ -59,7 +62,7 @@ export function registerReceiptHandlers(socket) {
         { _id: messageId, 'deliveredTo.user': { $ne: userId } },
         { $push: { deliveredTo: { user: userId, at } } },
       );
-      if (result.modifiedCount) notifySenders([{ ...message, _id: messageId }], userId, at);
+      if (result.modifiedCount) await notifySenders([{ ...message, _id: messageId }], userId, at);
     } catch (err) {
       logError('message_delivered failed:')(err);
     }
@@ -92,9 +95,11 @@ export function registerReceiptHandlers(socket) {
       // Round 2: read receipts off (WhatsApp-style). The reads above are still stored
       // for unread counts, but a reader with receipts off tells nobody, and members
       // with receipts off don't receive anyone's reads either.
-      const receiptsOff = await getReceiptsOff(conversation.participants);
+      const [receiptsOff, blocked] = await Promise.all([getReceiptsOff(conversation.participants), getBlockRelations(userId)]);
       if (receiptsOff.has(userId)) return;
-      const recipients = othersIn(conversation.participants, userId).filter((p) => !receiptsOff.has(idOf(p)));
+      const recipients = othersIn(conversation.participants, userId).filter(
+        (p) => !receiptsOff.has(idOf(p)) && !blocked.has(idOf(p)),
+      );
       if (!recipients.length) return;
 
       emitToUsers(recipients, 'message_read', {

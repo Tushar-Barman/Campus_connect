@@ -94,6 +94,10 @@ export const usersApi = {
   // Round 2: { readReceipts?, theme?, accent?, density?, fontScale?, bubbleStyle? } → { settings }
   updateSettings: (patch) => data(api.put('/users/settings', patch)),
   deleteAccount: (password) => data(api.delete('/users/me', { data: { password } })),
+  // Round 2: blocking
+  block: (userId) => data(api.post(`/users/${userId}/block`)),
+  unblock: (userId) => data(api.delete(`/users/${userId}/block`)),
+  blocked: () => data(api.get('/users/blocked')),
 };
 
 export const campusesApi = {

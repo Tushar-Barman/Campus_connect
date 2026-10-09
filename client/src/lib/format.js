@@ -35,7 +35,9 @@ export function formatListTime(value, now = new Date()) {
 }
 
 /** "last seen just now", "last seen 5 min ago", "last seen today at 14:05" … */
+// Round 2: the server sends lastSeen: null across a block, which shows as blank.
 export function formatLastSeen(value, now = new Date()) {
+  if (value === null) return '';
   if (!value) return 'offline';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'offline';

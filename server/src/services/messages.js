@@ -4,6 +4,7 @@ import { loadConversationForUser } from '../middleware/membership.js';
 import { HttpError } from '../utils/http.js';
 import { isValidId } from '../utils/validate.js';
 import { toObjectId } from '../utils/ids.js';
+import { loadPrivacy, relationsFrom } from './blocks.js';
 
 /**
  * Message data layer (P1).
@@ -119,8 +120,14 @@ export function serializeMessageFor(message, viewerId, ctx = {}) {
  * Returns (viewerId) => ctx for serializeMessageFor().
  */
 export async function buildViewerContexts(participantIds) {
-  const receiptsOff = await getReceiptsOff(participantIds);
-  return (viewerId) => ({ receiptsOff, viewerReceiptsOff: receiptsOff.has(String(viewerId)) });
+  // Round 2: receipts-off and blocks for every participant, one query (Phases 6 and 9).
+  const privacy = await loadPrivacy(participantIds);
+  const { receiptsOff } = privacy;
+  return (viewerId) => ({
+    receiptsOff,
+    viewerReceiptsOff: receiptsOff.has(String(viewerId)),
+    blocked: relationsFrom(privacy, viewerId),
+  });
 }
 
 /**

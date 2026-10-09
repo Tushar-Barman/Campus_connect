@@ -7,6 +7,7 @@ import { Alert } from '../components/ui/Feedback.jsx';
 import PictureUploader from '../components/media/PictureUploader.jsx';
 import Switch from '../components/ui/Switch.jsx';
 import DeleteAccountDialog from '../components/account/DeleteAccountDialog.jsx';
+import BlockedUsersList from '../components/account/BlockedUsersList.jsx';
 import CampusSelect from '../components/campus/CampusSelect.jsx';
 import { useCampuses } from '../lib/campuses.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -179,6 +180,8 @@ export default function Profile() {
               busy={savingReceipts}
               onChange={setReceipts}
             />
+            <h3 className="mt-6 mb-2 text-sm font-medium text-ink">Blocked people</h3>
+            <BlockedUsersList />
           </section>
         ) : null}
 

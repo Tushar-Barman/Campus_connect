@@ -17,6 +17,9 @@ import { IMAGE_TYPES } from '../utils/fileType.js';
 import { readUpload } from '../utils/multipart.js';
 import { avatarPublicId, destroyAsset, requireStorage, uploadBuffer } from '../services/storage.js';
 import { deleteAccount } from '../services/accounts.js';
+import { blockUser, getBlockRelations, listBlocked, maskPresence, unblockUser } from '../services/blocks.js';
+import { emitToUsers } from '../socket/emit.js';
+import { toObjectId } from '../utils/ids.js';
 
 const SEARCH_LIMIT = 20;
 const MAX_QUERY_LENGTH = 50;
@@ -36,7 +39,9 @@ router.get(
     if (!q) return res.json({ users: [] });
     if (q.length > MAX_QUERY_LENGTH) throw new HttpError(400, `Search must be at most ${MAX_QUERY_LENGTH} characters`);
 
-    const filter = { _id: { $ne: req.userId } };
+    // Round 2: people in a block relation (either way) never find each other.
+    const hidden = [...(await getBlockRelations(req.userId))].map(toObjectId);
+    const filter = { _id: { $nin: [toObjectId(req.userId), ...hidden] } };
     const scope = req.query.campus;
     if (scope === 'all') {
       // every campus
@@ -155,14 +160,36 @@ router.delete(
   })
 );
 
-// GET /api/users/:id → { user }  (public fields only)
+// ── Round 2: blocking ───────────────────────────────────────
+
+// GET /api/users/blocked → { users }  (people you blocked, for the settings list)
+router.get(
+  '/blocked',
+  asyncHandler(async (req, res) => {
+    res.json({ users: await listBlocked(req.userId) });
+  })
+);
+
+// POST /api/users/:id/block → { userId, blocked: true }
+// DELETE /api/users/:id/block → { userId, blocked: false }
+// Only the blocker's own tabs are told (block_changed); the other person is never notified.
+const setBlock = (blocked) =>
+  asyncHandler(async (req, res) => {
+    const result = blocked ? await blockUser(req.userId, req.params.id) : await unblockUser(req.userId, req.params.id);
+    emitToUsers([req.userId], 'block_changed', result);
+    res.json(result);
+  });
+router.post('/:id/block', setBlock(true));
+router.delete('/:id/block', setBlock(false));
+
+// GET /api/users/:id → { user }  (public fields only; Round 2: no status/last seen across a block)
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {
     if (!isValidId(req.params.id)) throw new HttpError(404, 'User not found');
     const user = await User.findById(req.params.id).select(PUBLIC_USER_FIELDS).lean();
     if (!user) throw new HttpError(404, 'User not found');
-    res.json({ user });
+    res.json({ user: maskPresence(user, await getBlockRelations(req.userId)) });
   })
 );
 

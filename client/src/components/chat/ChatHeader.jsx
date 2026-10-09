@@ -4,6 +4,7 @@ import { ArrowLeft, Info, Sparkles, Star } from 'lucide-react';
 import { usePresence } from '@p3/hooks/usePresence.js';
 import Avatar from '../ui/Avatar.jsx';
 import Button from '../ui/Button.jsx';
+import Menu from '../ui/Menu.jsx';
 import { useNow } from '../../lib/useNow.js';
 import { CHAT_MEMORY_ENABLED } from '../../lib/api.js';
 import { formatLastSeen } from '../../lib/format.js';
@@ -14,14 +15,16 @@ import {
   typingLabel,
 } from '../../lib/conversation.js';
 
-export default function ChatHeader({ conversation, myId, typingUsers, onToggleStar, onOpenInfo, onOpenMemory }) {
+// Round 2: menuItems feed the ⋮ menu (block/unblock, wallpaper).
+export default function ChatHeader({ conversation, myId, typingUsers, onToggleStar, onOpenInfo, onOpenMemory, menuItems }) {
   const now = useNow(30000);
   const [starError, setStarError] = useState(false);
   const isGroup = conversation.type === 'group';
   const avatar = getConversationAvatar(conversation, myId);
   const other = isGroup ? null : getOtherParticipant(conversation, myId);
   const presence = usePresence(other); // P3 hook; `other` is null in groups
-  const otherPresence = other ? presence : null;
+  // Round 2: nothing about presence is shown for someone you blocked.
+  const otherPresence = other && !conversation.blockedByMe ? presence : null;
 
   const typingText = typingLabel(typingUsers, { short: !isGroup });
   let subtitle;
@@ -31,6 +34,8 @@ export default function ChatHeader({ conversation, myId, typingUsers, onToggleSt
     subtitleClass = 'text-brand-600 font-medium';
   } else if (isGroup) {
     subtitle = `${conversation.participants.length} members`;
+  } else if (conversation.blockedByMe) {
+    subtitle = 'Blocked';
   } else if (otherPresence?.online) {
     subtitle = 'online';
     subtitleClass = 'text-success font-medium';
@@ -92,6 +97,7 @@ export default function ChatHeader({ conversation, myId, typingUsers, onToggleSt
       <Button variant="ghost" size="icon" onClick={onOpenInfo} aria-label={isGroup ? 'Group info' : 'Contact info'} className="hidden sm:inline-flex">
         <Info className="h-4.5 w-4.5" aria-hidden="true" />
       </Button>
+      <Menu items={menuItems} label="Chat options" />
     </header>
   );
 }

@@ -115,6 +115,16 @@ export function useConversations(currentUserId, openConversationId) {
     );
   });
 
+  // Round 2: this user blocked/unblocked someone (here or in another tab).
+  useSocketEvent('block_changed', ({ userId, blocked } = {}) => {
+    if (!userId) return;
+    setConversations((list) =>
+      list.map((c) =>
+        c.type === 'private' && c.participants.some((p) => idOf(p) === String(userId)) ? { ...c, blockedByMe: Boolean(blocked) } : c,
+      ),
+    );
+  });
+
   // Round 2: the chat no longer exists (e.g. the other person deleted their account).
   useSocketEvent('conversation_removed', ({ conversationId } = {}) => {
     if (!conversationId) return;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileUp, LocateFixed, MapPin, MessageSquareOff } from 'lucide-react';
+import { Ban, FileUp, LocateFixed, MapPin, MessageSquareOff } from 'lucide-react';
 import { useMessages } from '@p3/hooks/useMessages.js';
 import { usePinnedMessages } from '@p3/hooks/usePinnedMessages.js';
 import { useTyping } from '@p3/hooks/useTyping.js';
@@ -22,8 +22,8 @@ import { EmptyState } from '../ui/Feedback.jsx';
 import { buttonClass } from '../ui/Button.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useConversationList } from '../../context/ConversationsContext.jsx';
-import { conversationsApi, getErrorMessage } from '../../lib/api.js';
-import { idOf, isNotFoundError } from '../../lib/conversation.js';
+import { conversationsApi, getErrorMessage, usersApi } from '../../lib/api.js';
+import { getOtherParticipant, idOf, isNotFoundError } from '../../lib/conversation.js';
 import { canDeleteForEveryone, isDeleted } from '../../lib/messageRules.js';
 
 const HIGHLIGHT_MS = 1600;
@@ -222,6 +222,20 @@ export default function ChatWindow({ conversation }) {
   declineRef.current = chat.declineLocationRequest;
   const onLocationDecline = useCallback((request) => declineRef.current(request._id), []);
 
+  // Round 2: block / unblock the other person in a private chat (confirmed first).
+  const other = conversation.type === 'private' ? getOtherParticipant(conversation, user?._id) : null;
+  const otherFirstName = (other?.name || 'this person').split(' ')[0];
+  const [blockDialog, setBlockDialog] = useState(false);
+  const blocked = Boolean(conversation.blockedByMe);
+  const toggleBlock = async () => {
+    const { blocked: now } = blocked ? await usersApi.unblock(idOf(other)) : await usersApi.block(idOf(other));
+    patchConversation(id, { blockedByMe: now });
+    flash(now ? `You blocked ${otherFirstName}` : `You unblocked ${otherFirstName}`);
+  };
+  const headerMenu = other
+    ? [{ key: 'block', label: blocked ? `Unblock ${otherFirstName}` : `Block ${otherFirstName}`, Icon: Ban, onSelect: () => setBlockDialog(true), danger: !blocked }]
+    : [];
+
   const sendVoice = (recording) => {
     chat.sendVoiceNote(recording, { replyTo: replyingTo });
     setReplyingTo(null);
@@ -265,6 +279,7 @@ export default function ChatWindow({ conversation }) {
         onToggleStar={toggleStar}
         onOpenInfo={() => setPanel('info')}
         onOpenMemory={() => setPanel('memory')}
+        menuItems={headerMenu}
       />
       <ConnectionBanner />
       <PinnedBar pinned={pins.pinned} onJump={jumpTo} onUnpin={(m) => setPinned(m._id, false)} />
@@ -292,6 +307,15 @@ export default function ChatWindow({ conversation }) {
         onLocationDecline={canLocate ? onLocationDecline : undefined}
       />
 
+      {blocked ? (
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-border bg-surface px-4 py-4 text-sm text-ink-muted" role="status">
+          <Ban className="h-4 w-4 text-danger" aria-hidden="true" />
+          You blocked {otherFirstName}.
+          <button type="button" onClick={() => setBlockDialog(true)} className="font-semibold text-brand-700 hover:underline">
+            Unblock
+          </button>
+        </div>
+      ) : (
       <Composer
         onSend={send}
         onInput={typing.notifyTyping}
@@ -306,6 +330,21 @@ export default function ChatWindow({ conversation }) {
         members={members}
         onAttachFiles={canAttach ? pickFiles : undefined}
         attachItems={attachItems}
+      />
+      )}
+
+      <ConfirmDialog
+        open={blockDialog}
+        onClose={() => setBlockDialog(false)}
+        title={blocked ? `Unblock ${otherFirstName}?` : `Block ${otherFirstName}?`}
+        message={
+          blocked
+            ? `You'll be able to message each other again, and see each other in search.`
+            : `Neither of you will be able to message the other here, find each other in search, or see each other's online status, typing or read receipts. ${otherFirstName} won't be told. Groups you share keep working.`
+        }
+        confirmLabel={blocked ? 'Unblock' : 'Block'}
+        danger={!blocked}
+        onConfirm={toggleBlock}
       />
 
       <LocationShareSheet
@@ -340,7 +379,7 @@ export default function ChatWindow({ conversation }) {
       {conversation.type === 'group' ? (
         <GroupInfoPanel conversation={conversation} open={panel === 'info'} onClose={closePanel} />
       ) : (
-        <ContactPanel conversation={conversation} open={panel === 'info'} onClose={closePanel} />
+        <ContactPanel conversation={conversation} open={panel === 'info'} onClose={closePanel} onToggleBlock={() => setBlockDialog(true)} />
       )}
       <ChatMemoryPanel conversationId={id} open={panel === 'memory'} onClose={closePanel} />
       <MessageInfoPanel

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
-import { loadConversationForUser, createMessage, resolveReplyTo, HttpError } from '../socket/deps.js';
+import { loadConversationForUser, createMessage, resolveReplyTo, assertCanMessage, HttpError } from '../socket/deps.js';
 import { publishMessage } from '../socket/notify.js';
 import { isObjectId } from '../socket/validate.js';
 
@@ -151,6 +151,7 @@ export function sanitizeFileName(original, fallbackExt) {
 export async function createMediaMessage({ conversationId, userId, file, duration, replyTo, caption }) {
   if (!isObjectId(conversationId)) throw new HttpError(404, 'Conversation not found');
   const conversation = await loadConversationForUser(conversationId, String(userId));
+  await assertCanMessage(conversation, String(userId)); // Round 2: blocked private chats
   // Round 2: checked before the upload, so a bad reply target costs no Cloudinary call.
   const replyToId = await resolveReplyTo(conversation, replyTo, String(userId));
 

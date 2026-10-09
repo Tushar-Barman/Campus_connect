@@ -156,6 +156,8 @@ Password: minimum 8 characters. Email normalised to lowercase.
 6. All your sockets are disconnected.
 
 Every step re-reads the current state, so it's safe to retry after a partial failure. |
+| GET | `/users/blocked` | **(Round 2)** → `{ users }`: the people you blocked (public fields). |
+| POST / DELETE | `/users/:id/block` | **(Round 2)** → `{ userId, blocked }`. Blocking yourself is 400; an unknown user is 404. Only your own tabs get `block_changed`; the other person is never told. |
 | PUT | `/users/settings` | **(Round 2)** `{ readReceipts?, theme?, accent?, density?, fontScale?, bubbleStyle? }` → `{ settings }` (all keys, defaults filled in). Unknown keys or values → 400. Only your own settings. |
 | POST | `/users/profile-picture` | multipart field `picture` (Phase 3) |
 | DELETE | `/users/profile-picture` | Phase 3 |
@@ -163,7 +165,7 @@ Every step re-reads the current state, so it's safe to retry after a partial fai
 ### Conversations
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/conversations` | Your chats, newest first. Each item has populated `participants`, `lastMessage`, plus `isStarred` and `unreadCount` → `{ conversations }`. **(Round 2)** also `hasUnreadMention` (an unread message @mentions you). |
+| GET | `/conversations` | Your chats, newest first. Each item has populated `participants`, `lastMessage`, plus `isStarred` and `unreadCount` → `{ conversations }`. **(Round 2)** Also `hasUnreadMention` (an unread message @mentions you) and `blockedByMe` (private chats; there is deliberately no `blockedMe`). |
 | POST | `/conversations` | `{ userId }` → find-or-create private chat → `{ conversation, created }` |
 | GET | `/conversations/:id` | → `{ conversation }` |
 | POST / DELETE | `/conversations/:id/star` | Star / unstar for the current user only |
@@ -238,6 +240,7 @@ Rules for answering a request:
 | `message_pinned` | `{ message }` |
 | `message_unpinned` | `{ conversationId, messageId }` |
 | `group_member_added` / `group_member_removed` | `{ conversationId, userId }` (Phase 3) |
+| `block_changed` | `{ userId, blocked }` (Round 2). Sent only to the blocker's own tabs: update `blockedByMe` on the private chat with that user. |
 | `conversation_removed` | `{ conversationId }` (Round 2). The chat no longer exists (the other person deleted their account): remove it from the list and leave it if it's open. |
 | `message_updated` | `{ message }` (Round 2). An existing message changed: it was edited, deleted for everyone, or a location request was answered. The payload is serialized **per viewer**, so it's emitted to each participant separately. Replace the message by `_id`, and update the sidebar preview if it's the chat's `lastMessage`. For "delete for me", only the user's own tabs get `{ message: { _id, conversationId, hidden: true } }`: remove it from the list. |
 
@@ -283,6 +286,12 @@ Rules for answering a request:
 8. CORS and Socket.IO only accept origins listed in `CLIENT_URL`.
 
 ---
+
+**Blocking (Round 2).** A block works in **both directions**, but only the blocker is told (`blockedByMe`):
+- **Sending:** `assertCanMessage(conversation, senderId)` in `services/blocks.js` runs on every send path (`send_message`, media, location, location answers and requests). In a private chat it fails with 403 "You can't send messages in this chat". Groups are not affected.
+- **New chats:** `POST /conversations` returns 403. The blocker gets the reason; the blocked person gets a generic "Can't start this chat".
+- **Discovery and presence:** hidden from each other's search. No `typing`, `user_online` or `user_offline` events between them, and `status` / `lastSeen` are masked (`'offline'` / `null`) in conversations and `GET /users/:id`.
+- **Receipts:** none between them. Delivered and read entries are stripped by the serializer, and `message_delivered` / `message_read` aren't emitted.
 
 ## 9. Code conventions
 

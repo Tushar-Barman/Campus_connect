@@ -3,6 +3,7 @@ import {
   createMessage,
   resolveReplyTo,
   populateMessage,
+  assertCanMessage,
   HttpError,
   Message,
   User,
@@ -43,9 +44,11 @@ function parseLocation(body = {}) {
   return { lat, lng, accuracy: Math.round(accuracy), label: cleanLabel };
 }
 
-async function loadConversation(conversationId, userId) {
+async function loadConversation(conversationId, userId, { sending = true } = {}) {
   if (!isObjectId(conversationId)) throw new HttpError(404, 'Conversation not found');
-  return loadConversationForUser(conversationId, String(userId));
+  const conversation = await loadConversationForUser(conversationId, String(userId));
+  if (sending) await assertCanMessage(conversation, String(userId)); // Round 2: blocked private chats
+  return conversation;
 }
 
 const stillPending = () => ({ requestStatus: 'pending', createdAt: { $gte: new Date(Date.now() - LOCATION_REQUEST_TTL_MS) } });
@@ -122,7 +125,7 @@ export async function requestLocation({ conversationId, userId }) {
 
 /** POST /messages/:cid/location-request/:mid/decline → { messageId, requestStatus: 'declined' } */
 export async function declineLocationRequest({ conversationId, messageId, userId }) {
-  const conversation = await loadConversation(conversationId, userId);
+  const conversation = await loadConversation(conversationId, userId, { sending: false });
   await claimRequest(conversation, messageId, userId, 'declined');
   await broadcastRequest(conversation, messageId);
   return { messageId: String(messageId), requestStatus: 'declined' };

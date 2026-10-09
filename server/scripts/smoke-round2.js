@@ -567,6 +567,96 @@ async function phase8({ B, C, sB }) {
   sX.socket.close();
 }
 
+// ── Phase 9: blocking ────────────────────────────────────────
+async function phase9({ B, sB }) {
+  section('Phase 9 · block users');
+  const P = await register('Priya Blocker', 'p');
+  const Q = await register('Quinn Blocked', 'q');
+  const [sP, sQ] = await Promise.all([listen(P.token), listen(Q.token)]);
+  const priv = (await call('POST', '/conversations', { token: P.token, body: { userId: Q.id } })).data?.conversation?._id;
+  const group = (await call('POST', '/conversations/group', { token: P.token, body: { name: 'Shared group', memberIds: [Q.id, B.id] } })).data?.conversation?._id;
+  const sendIn = (s, cid, text) => emitAck(s.socket, 'send_message', { conversationId: cid, text, clientId: `p9-${Math.random()}` });
+  await sendIn(sQ, priv, 'hi before the block');
+
+  const self = await call('POST', `/users/${P.id}/block`, { token: P.token });
+  const ghost = await call('POST', `/users/${new mongoose.Types.ObjectId()}/block`, { token: P.token });
+  const junk = await call('POST', '/users/not-an-id/block', { token: P.token });
+  check("can't block yourself (400); unknown / bad id → 404", self.status === 400 && ghost.status === 404 && junk.status === 404, `${self.status} ${ghost.status} ${junk.status}`);
+
+  sP.events.length = 0;
+  sQ.events.length = 0;
+  const blk = await call('POST', `/users/${Q.id}/block`, { token: P.token });
+  check('P blocks Q', blk.status === 200 && blk.data?.blocked === true, show(blk));
+  const ownTabs = await waitFor(sP.events, 'block_changed', (p) => p?.userId === Q.id && p.blocked === true);
+  check("P's own tabs get block_changed; Q is not told", Boolean(ownTabs) && !sQ.events.some((e) => e.event === 'block_changed'));
+  const list = await call('GET', '/users/blocked', { token: P.token });
+  check('GET /users/blocked lists Q (public fields only)', list.data?.users?.length === 1 && list.data.users[0]._id === Q.id && !('blockedUsers' in list.data.users[0]), show(list));
+
+  // Sending, both directions, every path.
+  const qSend = await sendIn(sQ, priv, 'can you see this?');
+  const pSend = await sendIn(sP, priv, 'nope');
+  check("text in the private chat fails both ways with \"You can't send messages in this chat\"", qSend.ok === false && pSend.ok === false && /can't send messages in this chat/i.test(qSend.error), JSON.stringify([qSend, pSend]));
+  const form = new FormData();
+  form.append('file', new Blob([PNG], { type: 'image/png' }), 'a.png');
+  const media = await call('POST', `/messages/${priv}/media`, { token: Q.token, form });
+  const loc = await call('POST', `/messages/${priv}/location`, { token: Q.token, body: { lat: 31.77, lng: 76.98, accuracy: 10 } });
+  const ask = await call('POST', `/messages/${priv}/location-request`, { token: Q.token });
+  check('media, location and location requests are blocked too (403)', media.status === 403 && loc.status === 403 && ask.status === 403, `${media.status} ${loc.status} ${ask.status}`);
+  const groupOk = await sendIn(sQ, group, 'groups still work');
+  check('groups are not affected', groupOk.ok === true, JSON.stringify(groupOk));
+
+  // New chats and discovery.
+  const pOpen = await call('POST', '/conversations', { token: P.token, body: { userId: Q.id } });
+  const qOpen = await call('POST', '/conversations', { token: Q.token, body: { userId: P.id } });
+  check('POST /conversations: blocker gets 403 with the reason', pOpen.status === 403 && /blocked/i.test(pOpen.data?.error), show(pOpen));
+  check('…blocked person gets a generic 403 that does not reveal the block', qOpen.status === 403 && !/block/i.test(qOpen.data?.error), show(qOpen));
+  const pSearch = await call('GET', `/users/search?q=Quinn&campus=all`, { token: P.token });
+  const qSearch = await call('GET', `/users/search?q=Priya&campus=all`, { token: Q.token });
+  check('they are hidden from each other in search', !pSearch.data?.users?.some((u) => u._id === Q.id) && !qSearch.data?.users?.some((u) => u._id === P.id));
+
+  // What each side sees.
+  const pList = (await call('GET', '/conversations', { token: P.token })).data?.conversations ?? [];
+  const qList = (await call('GET', '/conversations', { token: Q.token })).data?.conversations ?? [];
+  const pItem = pList.find((c) => c._id === priv);
+  const qItem = qList.find((c) => c._id === priv);
+  check('blocker sees blockedByMe: true', pItem?.blockedByMe === true);
+  check('blocked person sees blockedByMe: false and no blockedMe field', qItem?.blockedByMe === false && !('blockedMe' in qItem));
+  const pInQ = qItem?.participants?.find((p) => p._id === P.id);
+  check('no status / last seen across the block', pInQ?.status === 'offline' && pInQ.lastSeen === null, JSON.stringify(pInQ));
+  const profile = await call('GET', `/users/${P.id}`, { token: Q.token });
+  check('…also on GET /users/:id', profile.data?.user?.lastSeen === null && profile.data.user.status === 'offline', show(profile));
+
+  // Typing and presence.
+  sP.events.length = 0;
+  sB.events.length = 0;
+  sQ.socket.emit('typing', { conversationId: group });
+  await sleep(600);
+  check('typing in a shared group reaches others but not across the block', sB.events.some((e) => e.event === 'typing' && e.payload?.userId === Q.id) && !sP.events.some((e) => e.event === 'typing'));
+  sQ.socket.close();
+  await sleep(3600);
+  check('online/offline is not sent across the block', sB.events.some((e) => e.event === 'user_offline' && e.payload?.userId === Q.id) && !sP.events.some((e) => e.event === 'user_offline' && e.payload?.userId === Q.id));
+  const sQ2 = await listen(Q.token);
+
+  // Receipts in the shared group.
+  const gm = (await sendIn(sP, group, 'who saw this?')).message;
+  await sleep(300);
+  sP.events.length = 0;
+  sQ2.socket.emit('message_read', { conversationId: group });
+  sB.socket.emit('message_read', { conversationId: group });
+  await sleep(800);
+  check('no read receipt across the block, normal ones still arrive', sP.events.some((e) => e.event === 'message_read' && e.payload?.userId === B.id) && !sP.events.some((e) => e.event === 'message_read' && e.payload?.userId === Q.id));
+  const hist = await call('GET', `/messages/${group}`, { token: P.token });
+  const seen = hist.data?.messages?.find((m) => m._id === gm._id);
+  check("history hides Q's delivered/read entries from P", seen && !seen.readBy.some((r) => String(r.user) === Q.id) && !seen.deliveredTo.some((r) => String(r.user) === Q.id) && seen.readBy.some((r) => String(r.user) === B.id), JSON.stringify(seen && { r: seen.readBy, d: seen.deliveredTo }));
+
+  // Unblock restores everything.
+  const unb = await call('DELETE', `/users/${Q.id}/block`, { token: P.token });
+  const after = await sendIn(sQ2, priv, 'back again');
+  const pSearch2 = await call('GET', `/users/search?q=Quinn&campus=all`, { token: P.token });
+  check('unblock → messaging and search work again', unb.status === 200 && after.ok === true && pSearch2.data?.users?.some((u) => u._id === Q.id), JSON.stringify(after));
+  [sP, sQ2].forEach((s) => s.socket.close());
+}
+
 async function main() {
   console.log(`\nCampusConnect Round 2 smoke test → ${BASE}`);
   try {
@@ -595,6 +685,7 @@ async function main() {
     await phase6(ctx);
     await phase7(ctx);
     await phase8(ctx);
+    await phase9(ctx);
   } finally {
     [sA, sB, sC].forEach((s) => s.socket.close());
     // Every user this run created, including ones made inside a phase.

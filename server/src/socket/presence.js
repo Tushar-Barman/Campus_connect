@@ -1,4 +1,4 @@
-import { User, Conversation } from './deps.js';
+import { User, Conversation, getBlockRelations } from './deps.js';
 import { emitToUsers } from './emit.js';
 
 // Long enough that a page refresh never shows the user going offline.
@@ -10,9 +10,13 @@ const offlineTimers = new Map();
 
 const logError = (label) => (err) => console.error(label, err);
 
+// Round 2: people in a block relation don't get each other's online/offline events.
 async function chatPartners(userId) {
-  const ids = await Conversation.distinct('participants', { participants: userId });
-  return ids.map(String).filter((id) => id !== userId);
+  const [ids, blocked] = await Promise.all([
+    Conversation.distinct('participants', { participants: userId }),
+    getBlockRelations(userId),
+  ]);
+  return ids.map(String).filter((id) => id !== userId && !blocked.has(id));
 }
 
 // Nobody is connected right after a restart.

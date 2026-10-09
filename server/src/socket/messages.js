@@ -1,4 +1,4 @@
-import { loadConversationForUser, createMessage, resolveReplyTo, cleanMentions } from './deps.js';
+import { loadConversationForUser, createMessage, resolveReplyTo, cleanMentions, assertCanMessage } from './deps.js';
 import { publishMessage } from './notify.js';
 import { isObjectId } from './validate.js';
 
@@ -39,6 +39,7 @@ export function registerMessageHandlers(socket) {
       if (input.error) return reply({ ok: false, error: input.error });
 
       const conversation = await loadConversationForUser(input.conversationId, socket.userId);
+      await assertCanMessage(conversation, socket.userId); // Round 2: blocked private chats
       const replyTo = await resolveReplyTo(conversation, input.replyTo, socket.userId);
       const created = await createMessage({
         conversationId: conversation._id,

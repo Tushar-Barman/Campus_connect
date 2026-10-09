@@ -15,3 +15,9 @@ export {
   cleanMentions,
   getReceiptsOff,
 } from '../services/messages.js';
+export {
+  assertCanMessage,
+  getBlockRelations,
+  loadPrivacy,
+  relationsFrom,
+} from '../services/blocks.js';
