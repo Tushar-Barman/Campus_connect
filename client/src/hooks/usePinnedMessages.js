@@ -47,6 +47,17 @@ export function usePinnedMessages(conversationId) {
     setPinned((list) => [message, ...list.filter((m) => String(m._id) !== String(message._id))]);
   });
 
+  // Round 2: deleted (for everyone or for me) → gone from the pinned list; edited → new text.
+  useSocketEvent('message_updated', ({ message } = {}) => {
+    if (!message || String(message.conversationId) !== String(conversationId)) return;
+    const id = String(message._id);
+    setPinned((list) =>
+      message.hidden || message.deletedAt
+        ? list.filter((m) => String(m._id) !== id)
+        : list.map((m) => (String(m._id) === id ? { ...m, text: message.text, editedAt: message.editedAt } : m)),
+    );
+  });
+
   useSocketEvent('message_unpinned', ({ conversationId: cid, messageId } = {}) => {
     if (String(cid) !== String(conversationId)) return;
     setPinned((list) => list.filter((m) => String(m._id) !== String(messageId)));

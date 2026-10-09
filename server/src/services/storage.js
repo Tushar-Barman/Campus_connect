@@ -95,6 +95,37 @@ export async function destroyAsset(publicId, resourceType = 'image') {
   return data.result === 'ok' || data.result === 'not found';
 }
 
+/**
+ * Recovers { publicId, resourceType } from a Cloudinary delivery URL, e.g.
+ *   https://res.cloudinary.com/<cloud>/video/upload/v17/campusconnect/voice/abc.mp3
+ *   → { publicId: 'campusconnect/voice/abc', resourceType: 'video' }
+ * Raw files keep their extension in the public id. Returns null for other URLs.
+ */
+export function assetFromUrl(url) {
+  if (typeof url !== 'string') return null;
+  const match = url.match(/^https:\/\/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/upload\/(.+)$/);
+  if (!match) return null;
+  const [, resourceType, rest] = match;
+  // Drop transformation segments ("c_fill,w_512") and the version ("v1712345").
+  const parts = rest.split('/');
+  while (parts.length > 1 && (/^v\d+$/.test(parts[0]) || parts[0].includes(','))) parts.shift();
+  let publicId = decodeURIComponent(parts.join('/'));
+  if (resourceType !== 'raw') publicId = publicId.replace(/\.[a-z0-9]+$/i, '');
+  return publicId ? { publicId, resourceType } : null;
+}
+
+/** Best-effort delete of the file behind a message. Never throws. */
+export async function destroyMediaUrl(url) {
+  const asset = assetFromUrl(url);
+  if (!asset || !isStorageConfigured()) return false;
+  try {
+    return await destroyAsset(asset.publicId, asset.resourceType);
+  } catch (err) {
+    console.warn('[cloudinary] could not delete', asset.publicId, err.message);
+    return false;
+  }
+}
+
 /** Deterministic ids, so a new picture replaces the old one instead of piling up. */
 export const avatarPublicId = (userId) => `campusconnect/avatars/user_${userId}`;
 export const groupPicturePublicId = (conversationId) => `campusconnect/groups/group_${conversationId}`;

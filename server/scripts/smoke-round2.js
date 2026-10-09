@@ -158,6 +158,79 @@ async function phase1({ A, B, sA, sB, privId }) {
   check('new_message reaches the other user', Boolean(live));
 }
 
+// ── Phase 2: edit and delete ─────────────────────────────────
+async function phase2({ A, B, C, sA, sB, privId }) {
+  section('Phase 2 · edit and delete');
+  const send = async (socket, text) => (await emitAck(socket, 'send_message', { conversationId: privId, text, clientId: `p2-${Math.random()}` })).message;
+  // Raw collection update: Mongoose treats createdAt as immutable and would ignore it.
+  const backdate = (id, minutes) =>
+    Message.collection.updateOne({ _id: new mongoose.Types.ObjectId(id) }, { $set: { createdAt: new Date(Date.now() - minutes * 60 * 1000) } });
+
+  // Edit
+  const m = await send(sA.socket, 'tpyo here');
+  sB.events.length = 0;
+  const edit = await call('PATCH', `/messages/${privId}/${m._id}`, { token: A.token, body: { text: '  typo fixed  ' } });
+  check('sender edits within 15 min → 200, trimmed, editedAt set', edit.status === 200 && edit.data?.message?.text === 'typo fixed' && edit.data.message.editedAt, show(edit));
+  const upd = await waitFor(sB.events, 'message_updated', (p) => p?.message?._id === m._id);
+  check('other user gets message_updated with the new text', upd?.message?.text === 'typo fixed' && upd.message.editedAt, JSON.stringify(upd));
+  const notMine = await call('PATCH', `/messages/${privId}/${m._id}`, { token: B.token, body: { text: 'hijack' } });
+  check('non-sender edit → 403', notMine.status === 403, show(notMine));
+  const outsider = await call('PATCH', `/messages/${privId}/${m._id}`, { token: C.token, body: { text: 'x' } });
+  check('non-member edit → 404', outsider.status === 404, show(outsider));
+  const empty = await call('PATCH', `/messages/${privId}/${m._id}`, { token: A.token, body: { text: '   ' } });
+  const long = await call('PATCH', `/messages/${privId}/${m._id}`, { token: A.token, body: { text: 'x'.repeat(4001) } });
+  check('empty / >4000 char edit → 400', empty.status === 400 && long.status === 400, `${empty.status} ${long.status}`);
+  await backdate(m._id, 16);
+  const late = await call('PATCH', `/messages/${privId}/${m._id}`, { token: A.token, body: { text: 'too late' } });
+  check('edit after 15 min → 403', late.status === 403, show(late));
+
+  // Delete for everyone
+  const d = await send(sA.socket, 'oops wrong chat');
+  await call('POST', `/messages/${privId}/pin/${d._id}`, { token: B.token });
+  sB.events.length = 0;
+  const forbidden = await call('DELETE', `/messages/${privId}/${d._id}?scope=everyone`, { token: B.token });
+  check('non-sender delete for everyone → 403', forbidden.status === 403, show(forbidden));
+  const del = await call('DELETE', `/messages/${privId}/${d._id}?scope=everyone`, { token: A.token });
+  check('sender deletes for everyone → tombstone', del.status === 200 && del.data?.message?.deletedAt && !('text' in del.data.message), show(del));
+  const tomb = await waitFor(sB.events, 'message_updated', (p) => p?.message?._id === d._id);
+  check('other user gets a tombstone via message_updated', tomb?.message?.deletedAt && !('text' in tomb.message), JSON.stringify(tomb));
+  const unpinned = await waitFor(sB.events, 'message_unpinned', (p) => p?.messageId === d._id);
+  check('deleting a pinned message emits message_unpinned', Boolean(unpinned));
+  const stored = await Message.findById(d._id).lean();
+  check('stored message has no content and is unpinned', stored.text === '' && !stored.isPinned && stored.deletedAt, JSON.stringify(stored));
+  const pinnedNow = await call('GET', `/messages/${privId}/pinned`, { token: B.token });
+  check('pinned list no longer has it', !pinnedNow.data?.messages?.some((x) => x._id === d._id), show(pinnedNow));
+  const again = await call('DELETE', `/messages/${privId}/${d._id}?scope=everyone`, { token: A.token });
+  check('deleting twice is harmless', again.status === 200, show(again));
+  const editDeleted = await call('PATCH', `/messages/${privId}/${d._id}`, { token: A.token, body: { text: 'revive' } });
+  check('a deleted message cannot be edited', editDeleted.status === 400, show(editDeleted));
+  const listB = await call('GET', '/conversations', { token: B.token });
+  const item = listB.data?.conversations?.find((c) => c._id === privId);
+  check('sidebar preview is the tombstone when it was the last message', item?.lastMessage?._id === d._id && item.lastMessage.deletedAt, JSON.stringify(item?.lastMessage));
+
+  const old = await send(sA.socket, 'an hour ago');
+  await backdate(old._id, 61);
+  const lateDel = await call('DELETE', `/messages/${privId}/${old._id}?scope=everyone`, { token: A.token });
+  check('delete for everyone after 1 h → 403', lateDel.status === 403, show(lateDel));
+  const badScope = await call('DELETE', `/messages/${privId}/${old._id}?scope=all`, { token: A.token });
+  check('unknown scope → 400', badScope.status === 400, show(badScope));
+
+  // Delete for me
+  sA.events.length = 0;
+  sB.events.length = 0;
+  const me = await call('DELETE', `/messages/${privId}/${old._id}?scope=me`, { token: B.token });
+  check('anyone in the chat can delete for me', me.status === 200 && me.data?.hidden === true, show(me));
+  const own = await waitFor(sB.events, 'message_updated', (p) => p?.message?._id === old._id && p.message.hidden);
+  check('…their own tabs get { hidden: true }', Boolean(own));
+  await sleep(300);
+  check('…and the other user is not told', !sA.events.some((e) => e.event === 'message_updated' && e.payload?.message?._id === old._id));
+  const histB = await call('GET', `/messages/${privId}`, { token: B.token });
+  const histA = await call('GET', `/messages/${privId}`, { token: A.token });
+  check('hidden for B, still visible for A', !histB.data.messages.some((x) => x._id === old._id) && histA.data.messages.some((x) => x._id === old._id));
+  const outsiderMe = await call('DELETE', `/messages/${privId}/${old._id}?scope=me`, { token: C.token });
+  check('non-member delete for me → 404', outsiderMe.status === 404, show(outsiderMe));
+}
+
 async function main() {
   console.log(`\nCampusConnect Round 2 smoke test → ${BASE}`);
   try {
@@ -179,6 +252,7 @@ async function main() {
 
   try {
     await phase1(ctx);
+    await phase2(ctx);
   } finally {
     [sA, sB, sC].forEach((s) => s.socket.close());
     const ids = [A.id, B.id, C.id];

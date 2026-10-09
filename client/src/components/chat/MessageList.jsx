@@ -24,7 +24,7 @@ function LoadingBubbles() {
 }
 
 /** `chat` is the object returned by P3's useMessages(conversationId, currentUser). */
-export default function MessageList({ conversation, chat, myId, typingUsers, pinnedIds, highlightId, onPin, onUnpin }) {
+export default function MessageList({ conversation, chat, myId, typingUsers, pinnedIds, highlightId, onPin, onUnpin, onEdit, onDelete }) {
   const scrollRef = useRef(null);
   const atBottomRef = useRef(true);
   const prevRef = useRef({ first: null, last: null, length: 0, scrollHeight: 0 });
@@ -113,6 +113,7 @@ export default function MessageList({ conversation, chat, myId, typingUsers, pin
               <MessageBubble
                 message={message}
                 mine={mine}
+                myId={myId}
                 status={mine ? getReceiptStatus(message, conversation.participants) : undefined}
                 isPinned={Boolean(message._id && pinnedIds.has(message._id))}
                 showSender={isGroup && !mine && !grouped}
@@ -122,6 +123,8 @@ export default function MessageList({ conversation, chat, myId, typingUsers, pin
                 onDiscard={() => discardMessage(message.clientId)}
                 onPin={() => onPin(message)}
                 onUnpin={() => onUnpin(message)}
+                onEdit={onEdit}
+                onDelete={onDelete}
               />
             </Fragment>
           );

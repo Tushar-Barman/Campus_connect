@@ -1,10 +1,24 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { uploadLimiter } from '../middleware/rateLimit.js';
-import { notifyMessagePinned, notifyMessageUnpinned } from '../socket/notify.js'; // P3
+import {
+  notifyMessageHidden,
+  notifyMessagePinned,
+  notifyMessageUnpinned,
+  notifyMessageUpdated,
+} from '../socket/notify.js'; // P3
 import { mediaUpload, createMediaMessage } from '../services/media.js'; // P3
 import { asyncHandler } from '../utils/http.js';
-import { getMessages, getPinnedMessages, setPinned } from '../services/messages.js';
+import { invalidateChatMemory } from '../services/aiMemory.js'; // P3
+import { destroyMediaUrl } from '../services/storage.js';
+import {
+  deleteMessage,
+  editMessage,
+  getMessages,
+  getPinnedMessages,
+  serializeMessageFor,
+  setPinned,
+} from '../services/messages.js';
 
 // Text messages are SENT over Socket.IO (P3's send_message → publishMessage → createMessage).
 // This router serves history, pin/unpin, and P3's media upload.
@@ -66,6 +80,46 @@ router.post(
       duration: req.body?.duration,
     });
     res.status(201).json({ message });
+  })
+);
+
+// ── Round 2: edit and delete ───────────────────────────────
+
+// PATCH /api/messages/:conversationId/:messageId  { text } → { message }
+// Sender only, text messages only, within 15 minutes. Broadcasts message_updated.
+router.patch(
+  '/:conversationId/:messageId',
+  asyncHandler(async (req, res) => {
+    const { conversationId, messageId } = req.params;
+    const { message, conversation } = await editMessage(conversationId, messageId, req.userId, req.body?.text);
+    invalidateChatMemory(conversation._id);
+    await notifyMessageUpdated(conversation, message);
+    res.json({ message: serializeMessageFor(message, req.userId) });
+  })
+);
+
+// DELETE /api/messages/:conversationId/:messageId?scope=everyone|me
+//   everyone → { message } (tombstone), broadcasts message_updated (+ message_unpinned if it was pinned)
+//   me       → { messageId, hidden: true }, tells only this user's own tabs
+router.delete(
+  '/:conversationId/:messageId',
+  asyncHandler(async (req, res) => {
+    const { conversationId, messageId } = req.params;
+    const scope = typeof req.query.scope === 'string' ? req.query.scope : 'everyone';
+    const result = await deleteMessage(conversationId, messageId, req.userId, scope);
+
+    if (result.scope === 'me') {
+      notifyMessageHidden(req.userId, result.conversation._id, result.message._id);
+      return res.json({ messageId: String(result.message._id), hidden: true });
+    }
+
+    const { message, conversation } = result;
+    invalidateChatMemory(conversation._id);
+    if (result.wasPinned) notifyMessageUnpinned(conversation, String(message._id));
+    await notifyMessageUpdated(conversation, message);
+    // Best effort: a failed Cloudinary delete never blocks the delete itself.
+    if (result.mediaUrl) destroyMediaUrl(result.mediaUrl);
+    return res.json({ message: serializeMessageFor(message, req.userId) });
   })
 );
 

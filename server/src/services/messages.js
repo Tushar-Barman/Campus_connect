@@ -267,6 +267,92 @@ export async function setPinned(conversationId, messageId, userId, pinned) {
   return { message, conversation };
 }
 
+// ── Edit and delete (Round 2) ───────────────────────────────
+
+export const EDIT_WINDOW_MS = 15 * 60 * 1000;
+export const DELETE_WINDOW_MS = 60 * 60 * 1000;
+
+const within = (message, windowMs) => Date.now() - new Date(message.createdAt).getTime() <= windowMs;
+
+async function loadMessageIn(conversation, messageId) {
+  if (!isValidId(String(messageId ?? ''))) throw new HttpError(404, MESSAGE_NOT_FOUND);
+  const message = await Message.findOne({ _id: messageId, conversationId: conversation._id }).lean();
+  if (!message) throw new HttpError(404, MESSAGE_NOT_FOUND);
+  return message;
+}
+
+const isSender = (message, userId) => idOf(message.senderId) === String(userId);
+
+/**
+ * PATCH /messages/:cid/:mid { text }: the sender edits their own text message
+ * within 15 minutes. Returns { message (populated), conversation }.
+ */
+export async function editMessage(conversationId, messageId, userId, text) {
+  const conversation = await loadConversationForUser(conversationId, userId, { lean: true });
+  const existing = await loadMessageIn(conversation, messageId);
+  if (!isSender(existing, userId)) throw new HttpError(403, 'You can only edit your own messages');
+  if (existing.deletedAt) throw new HttpError(400, 'This message was deleted');
+  if (existing.messageType !== 'text') throw new HttpError(400, 'Only text messages can be edited');
+  if (!within(existing, EDIT_WINDOW_MS)) throw new HttpError(403, 'Messages can only be edited within 15 minutes of sending');
+  const clean = cleanText(text, { required: true });
+
+  const message = await populateMessage(
+    Message.findOneAndUpdate(
+      { _id: existing._id, deletedAt: { $exists: false } },
+      { $set: { text: clean, editedAt: new Date() } },
+      { new: true }
+    )
+  ).lean();
+  if (!message) throw new HttpError(404, MESSAGE_NOT_FOUND);
+  return { message, conversation };
+}
+
+/**
+ * DELETE /messages/:cid/:mid?scope=everyone|me
+ *   everyone: sender only, within 1 hour. Content is cleared and it is unpinned.
+ *   me:       any member; only hides it for them.
+ * Returns { scope, message (populated), conversation, wasPinned, mediaUrl, messageType }.
+ * Deleting twice is harmless (same result, no error).
+ */
+export async function deleteMessage(conversationId, messageId, userId, scope) {
+  if (scope !== 'everyone' && scope !== 'me') throw new HttpError(400, 'scope must be "everyone" or "me"');
+  const conversation = await loadConversationForUser(conversationId, userId, { lean: true });
+  const existing = await loadMessageIn(conversation, messageId);
+
+  if (scope === 'me') {
+    await Message.updateOne({ _id: existing._id }, { $addToSet: { hiddenFor: toObjectId(userId) } });
+    return { scope, message: existing, conversation };
+  }
+
+  if (!isSender(existing, userId)) throw new HttpError(403, 'You can only delete your own messages for everyone');
+  if (!existing.deletedAt && !within(existing, DELETE_WINDOW_MS)) {
+    throw new HttpError(403, 'Messages can only be deleted for everyone within 1 hour of sending');
+  }
+
+  const message = await populateMessage(
+    Message.findOneAndUpdate(
+      { _id: existing._id },
+      {
+        $set: { deletedAt: existing.deletedAt ?? new Date(), text: '', mediaUrl: '', isPinned: false },
+        $unset: {
+          mediaType: 1, duration: 1, fileName: 1, fileSize: 1, mimeType: 1, location: 1,
+          mentions: 1, replyTo: 1, pinnedAt: 1, pinnedBy: 1, requestStatus: 1, respondedWith: 1,
+        },
+      },
+      { new: true }
+    )
+  ).lean();
+
+  return {
+    scope,
+    message,
+    conversation,
+    wasPinned: Boolean(existing.isPinned),
+    mediaUrl: existing.mediaUrl,
+    messageType: existing.messageType,
+  };
+}
+
 /** Pinned messages of a conversation, most recently pinned first. */
 export async function getPinnedMessages(conversationId, userId) {
   const conversation = await loadConversationForUser(conversationId, userId, { lean: true });

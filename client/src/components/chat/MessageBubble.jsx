@@ -1,6 +1,22 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Check, CheckCheck, Clock, Copy, MoreVertical, Pin, PinOff, RotateCw, Trash2, UploadCloud } from 'lucide-react';
+import {
+  AlertCircle,
+  Ban,
+  Check,
+  CheckCheck,
+  Clock,
+  Copy,
+  MoreVertical,
+  Pencil,
+  Pin,
+  PinOff,
+  RotateCw,
+  Trash2,
+  UploadCloud,
+} from 'lucide-react';
 import { formatTime } from '../../lib/format.js';
+import { canDeleteForEveryone, canEdit, isDeleted } from '../../lib/messageRules.js';
+import { useLongPress } from '../../lib/useLongPress.js';
 import VoicePlayer from '../media/VoicePlayer.jsx';
 
 const TICKS = {
@@ -17,8 +33,36 @@ export function ReceiptTicks({ status }) {
   return <tick.Icon className={`h-3.5 w-3.5 ${tick.mine}`} aria-label={tick.label} role="img" />;
 }
 
-function MessageMenu({ message, mine, isPinned, onPin, onUnpin }) {
-  const [open, setOpen] = useState(false);
+// Items are worked out when the menu opens, so the edit/delete time windows are current.
+function menuItems({ message, myId, isPinned, onPin, onUnpin, onEdit, onDelete }) {
+  if (isDeleted(message)) {
+    return onDelete ? [{ key: 'hide', label: 'Delete for me', Icon: Trash2, onSelect: () => onDelete(message), danger: true }] : [];
+  }
+  const now = Date.now();
+  const items = [
+    isPinned
+      ? { key: 'unpin', label: 'Unpin', Icon: PinOff, onSelect: onUnpin }
+      : { key: 'pin', label: 'Pin message', Icon: Pin, onSelect: onPin },
+  ];
+  if (message.text) {
+    items.push({
+      key: 'copy',
+      label: 'Copy text',
+      Icon: Copy,
+      onSelect: () => navigator.clipboard?.writeText(message.text || '').catch(() => {}),
+    });
+  }
+  if (onEdit && canEdit(message, myId, now)) {
+    items.push({ key: 'edit', label: 'Edit', Icon: Pencil, onSelect: () => onEdit(message) });
+  }
+  if (onDelete) {
+    const label = canDeleteForEveryone(message, myId, now) ? 'Delete' : 'Delete for me';
+    items.push({ key: 'delete', label, Icon: Trash2, onSelect: () => onDelete(message), danger: true });
+  }
+  return items;
+}
+
+function MessageMenu({ open, setOpen, mine, items }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -33,14 +77,7 @@ function MessageMenu({ message, mine, isPinned, onPin, onUnpin }) {
       document.removeEventListener('pointerdown', close);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open]);
-
-  const run = (fn) => () => {
-    setOpen(false);
-    fn();
-  };
-
-  const copy = () => navigator.clipboard?.writeText(message.text || '').catch(() => {});
+  }, [open, setOpen]);
 
   return (
     <div ref={ref} className="relative self-center">
@@ -57,22 +94,22 @@ function MessageMenu({ message, mine, isPinned, onPin, onUnpin }) {
       {open ? (
         <div
           role="menu"
-          className={`absolute top-8 z-20 w-40 overflow-hidden rounded-xl border border-border bg-surface py-1 shadow-pop animate-fade-in ${mine ? 'right-0' : 'left-0'}`}
+          className={`absolute top-8 z-20 w-44 overflow-hidden rounded-xl border border-border bg-surface py-1 shadow-pop animate-fade-in ${mine ? 'right-0' : 'left-0'}`}
         >
-          {isPinned ? (
-            <button type="button" role="menuitem" onClick={run(onUnpin)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted">
-              <PinOff className="h-4 w-4" aria-hidden="true" /> Unpin
+          {items.map(({ key, label, Icon, onSelect, danger }) => (
+            <button
+              key={key}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onSelect();
+              }}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted ${danger ? 'text-danger' : ''}`}
+            >
+              <Icon className="h-4 w-4" aria-hidden="true" /> {label}
             </button>
-          ) : (
-            <button type="button" role="menuitem" onClick={run(onPin)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted">
-              <Pin className="h-4 w-4" aria-hidden="true" /> Pin message
-            </button>
-          )}
-          {message.text ? (
-            <button type="button" role="menuitem" onClick={run(copy)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted">
-              <Copy className="h-4 w-4" aria-hidden="true" /> Copy text
-            </button>
-          ) : null}
+          ))}
         </div>
       ) : null}
     </div>
@@ -80,6 +117,14 @@ function MessageMenu({ message, mine, isPinned, onPin, onUnpin }) {
 }
 
 function MessageBody({ message, mine }) {
+  if (isDeleted(message)) {
+    return (
+      <p className={`flex items-center gap-1.5 italic ${mine ? 'text-brand-100' : 'text-ink-subtle'}`}>
+        <Ban className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        This message was deleted
+      </p>
+    );
+  }
   if (message.messageType === 'voice') {
     return <VoicePlayer src={message.mediaUrl} duration={message.duration} mine={mine} />;
   }
@@ -93,9 +138,29 @@ function MessageBody({ message, mine }) {
   return <p className="break-words whitespace-pre-wrap">{message.text}</p>;
 }
 
-function MessageBubble({ message, mine, status, isPinned, showSender, groupedWithPrevious, highlighted, onRetry, onDiscard, onPin, onUnpin }) {
+function MessageBubble({
+  message,
+  mine,
+  myId,
+  status,
+  isPinned,
+  showSender,
+  groupedWithPrevious,
+  highlighted,
+  onRetry,
+  onDiscard,
+  onPin,
+  onUnpin,
+  onEdit,
+  onDelete,
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const failed = status === 'failed';
   const confirmed = Boolean(message._id);
+  const deleted = isDeleted(message);
+  const items = menuOpen ? menuItems({ message, myId, isPinned, onPin, onUnpin, onEdit, onDelete }) : null;
+  const hasMenu = confirmed && (!deleted || Boolean(onDelete));
+  const longPress = useLongPress(hasMenu ? () => setMenuOpen(true) : null);
 
   return (
     <div
@@ -104,16 +169,18 @@ function MessageBubble({ message, mine, status, isPinned, showSender, groupedWit
     >
       <div className={`flex max-w-[82%] flex-col sm:max-w-[70%] ${mine ? 'items-end' : 'items-start'}`}>
         <div
+          {...longPress}
           className={[
             'px-3.5 py-2 text-sm shadow-sm transition-shadow duration-300 rounded-bubble',
             mine ? (failed ? 'bg-danger text-white' : 'bg-brand-600 text-white') : 'bg-surface text-ink',
             mine && !groupedWithPrevious ? 'rounded-br-md' : '',
             !mine && !groupedWithPrevious ? 'rounded-bl-md' : '',
             status === 'sending' || status === 'uploading' ? 'opacity-80' : '',
+            deleted ? 'opacity-90' : '',
             highlighted ? 'ring-4 ring-star/60' : '',
           ].join(' ')}
         >
-          {showSender ? <p className="mb-0.5 text-xs font-semibold text-brand-700">{message.senderId?.name}</p> : null}
+          {showSender ? <p className="mb-0.5 text-xs font-semibold text-brand-700">{message.senderId?.name || 'Deleted user'}</p> : null}
           <MessageBody message={message} mine={mine} />
           {status === 'uploading' ? (
             <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/25" role="progressbar" aria-label="Uploading" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((message.progress || 0) * 100)}>
@@ -121,9 +188,10 @@ function MessageBubble({ message, mine, status, isPinned, showSender, groupedWit
             </div>
           ) : null}
           <span className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${mine ? 'text-brand-100' : 'text-ink-subtle'}`}>
-            {isPinned ? <Pin className="h-3 w-3" aria-label="Pinned" role="img" /> : null}
+            {isPinned && !deleted ? <Pin className="h-3 w-3" aria-label="Pinned" role="img" /> : null}
+            {message.editedAt && !deleted ? <span>edited</span> : null}
             <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
-            {mine ? <ReceiptTicks status={status} /> : null}
+            {mine && !deleted ? <ReceiptTicks status={status} /> : null}
           </span>
         </div>
         {failed ? (
@@ -141,7 +209,7 @@ function MessageBubble({ message, mine, status, isPinned, showSender, groupedWit
           </div>
         ) : null}
       </div>
-      {confirmed ? <MessageMenu message={message} mine={mine} isPinned={isPinned} onPin={onPin} onUnpin={onUnpin} /> : null}
+      {hasMenu ? <MessageMenu open={menuOpen} setOpen={setMenuOpen} mine={mine} items={items ?? []} /> : null}
     </div>
   );
 }

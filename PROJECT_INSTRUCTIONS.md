@@ -164,6 +164,8 @@ Password: minimum 8 characters. Email normalised to lowercase.
 | POST | `/messages/:conversationId/pin/:messageId` | Pin |
 | DELETE | `/messages/:conversationId/pin/:messageId` | Unpin |
 | POST | `/messages/:conversationId/media` | multipart `file` + `duration`; creates the message and broadcasts it (Phase 3) |
+| PATCH | `/messages/:conversationId/:messageId` | **(Round 2)** `{ text }`. Sender only, text messages only, within **15 min**, 1–4000 chars. Sets `editedAt` → `{ message }`, broadcasts `message_updated`. 403 outside the window or for someone else's message. |
+| DELETE | `/messages/:conversationId/:messageId?scope=everyone\|me` | **(Round 2)** `everyone`: sender only, within **1 h**. Clears content, unpins it (and emits `message_unpinned`), deletes the Cloudinary file best-effort → `{ message }` (tombstone), broadcasts `message_updated`. `me`: any member → `{ messageId, hidden: true }`, and only the user's own tabs are told. Repeating a delete is harmless. |
 
 ### AI
 | POST | `/ai/summarize/:conversationId` | → `{ summary, keyDecisions[], actionItems[], importantDates[] }` (Phase 4) |

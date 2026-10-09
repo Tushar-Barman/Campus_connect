@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Mic, SendHorizontal } from 'lucide-react';
+import { Check, Mic, Pencil, SendHorizontal, X } from 'lucide-react';
 import { useVoiceRecorder } from '@p3/hooks/useVoiceRecorder.js';
 import Button from '../ui/Button.jsx';
 import { formatDuration } from '../../lib/media.js';
@@ -21,14 +21,58 @@ function RecordingBar({ elapsedMs, maxDurationMs }) {
   );
 }
 
+function EditingBar({ onCancel }) {
+  return (
+    <div className="mb-2 flex items-center gap-2 rounded-xl border-l-4 border-brand-500 bg-brand-50 px-3 py-1.5 text-xs animate-fade-in">
+      <Pencil className="h-3.5 w-3.5 shrink-0 text-brand-700" aria-hidden="true" />
+      <span className="flex-1 font-semibold text-brand-800">Editing message</span>
+      <span className="hidden text-ink-subtle sm:inline">Esc to cancel</span>
+      <button
+        type="button"
+        onClick={onCancel}
+        aria-label="Cancel editing"
+        className="flex h-6 w-6 items-center justify-center rounded-full text-ink-muted hover:bg-brand-100 hover:text-ink"
+      >
+        <X className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 /**
  * Text input + voice notes.
  * onInput → P3 useTyping().notifyTyping · onStopTyping → stopTyping · onRecorded → P3 useMessages().sendVoiceNote
+ * Round 2: `editing` (a message) switches to edit mode; onSubmitEdit(text) may reject with an axios error.
  */
-export default function Composer({ onSend, onInput, onStopTyping, onRecorded }) {
+export default function Composer({ onSend, onInput, onStopTyping, onRecorded, editing = null, onSubmitEdit, onCancelEdit }) {
   const [text, setText] = useState('');
   const [shownError, setShownError] = useState('');
+  const [saving, setSaving] = useState(false);
   const ref = useRef(null);
+  const draftRef = useRef(''); // what was being typed before Edit was chosen
+  const editingId = editing?._id ?? null;
+
+  // Entering edit mode loads the message text; leaving it restores the earlier draft.
+  useEffect(() => {
+    if (!editingId) return undefined;
+    setText((current) => {
+      draftRef.current = current;
+      return editing.text || '';
+    });
+    requestAnimationFrame(() => {
+      const el = ref.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+    return () => setText(draftRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId]);
+
+  const flashError = (message) => {
+    setShownError(message);
+    setTimeout(() => setShownError(''), 4000);
+  };
 
   // P3's recorder: <button {...holdProps}>, hold to record, release to send, slide away to cancel.
   const recorder = useVoiceRecorder(onRecorded);
@@ -52,8 +96,24 @@ export default function Composer({ onSend, onInput, onStopTyping, onRecorded }) 
   const tooLong = text.length > MESSAGE_MAX;
   const canSend = trimmed.length > 0 && !tooLong;
 
-  const send = () => {
-    if (!canSend) return;
+  const send = async () => {
+    if (!canSend || saving) return;
+    if (editingId) {
+      if (trimmed === (editing.text || '').trim()) {
+        onCancelEdit?.();
+        return;
+      }
+      setSaving(true);
+      try {
+        await onSubmitEdit(trimmed);
+        onCancelEdit?.();
+      } catch (err) {
+        flashError(err?.response?.data?.error || 'Could not edit the message');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     onSend(trimmed);
     setText('');
     ref.current?.focus();
@@ -67,6 +127,7 @@ export default function Composer({ onSend, onInput, onStopTyping, onRecorded }) 
         send();
       }}
     >
+      {editingId ? <EditingBar onCancel={onCancelEdit} /> : null}
       {shownError ? (
         <p className="mb-2 text-xs text-danger" role="alert">
           {shownError}
@@ -89,13 +150,18 @@ export default function Composer({ onSend, onInput, onStopTyping, onRecorded }) 
                 else onStopTyping();
               }}
               onKeyDown={(e) => {
+                if (e.key === 'Escape' && editingId) {
+                  e.preventDefault();
+                  onCancelEdit?.();
+                  return;
+                }
                 if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   send();
                 }
               }}
               onBlur={onStopTyping}
-              placeholder="Type a message"
+              placeholder={editingId ? 'Edit your message' : 'Type a message'}
               aria-invalid={tooLong || undefined}
               className="block max-h-40 w-full resize-none rounded-2xl border border-border bg-canvas px-4 py-2.5 text-sm placeholder:text-ink-subtle focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 focus:outline-none"
             />
@@ -107,7 +173,11 @@ export default function Composer({ onSend, onInput, onStopTyping, onRecorded }) 
           </div>
         )}
 
-        {trimmed && !isRecording ? (
+        {editingId ? (
+          <Button type="submit" size="icon" className="rounded-full" disabled={!canSend} loading={saving} aria-label="Save edit">
+            {saving ? null : <Check className="h-4.5 w-4.5" aria-hidden="true" />}
+          </Button>
+        ) : trimmed && !isRecording ? (
           <Button type="submit" size="icon" className="rounded-full" disabled={!canSend} aria-label="Send message">
             <SendHorizontal className="h-4.5 w-4.5" aria-hidden="true" />
           </Button>

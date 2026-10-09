@@ -232,6 +232,37 @@ export function useMessages(conversationId, currentUser) {
     [forgetVoiceDraft],
   );
 
+  // Round 2: edit / delete over REST. The server also broadcasts message_updated;
+  // applying the response here makes this tab update even if that event is slow.
+  // Both reject with the axios error, so the caller can show it.
+  const replaceSaved = useCallback(
+    (cid, saved) => {
+      const id = String(saved._id);
+      updateFor(cid, (list) => list.map((m) => (String(m._id) === id ? confirmed({ ...saved, clientId: m.clientId }) : m)));
+    },
+    [updateFor],
+  );
+
+  const editMessage = useCallback(
+    async (messageId, text) => {
+      const cid = conversationId;
+      const { data } = await api.patch(`/messages/${cid}/${messageId}`, { text });
+      replaceSaved(cid, data.message);
+      return data.message;
+    },
+    [conversationId, replaceSaved],
+  );
+
+  const deleteMessage = useCallback(
+    async (messageId, scope) => {
+      const cid = conversationId;
+      const { data } = await api.delete(`/messages/${cid}/${messageId}`, { params: { scope } });
+      if (data.hidden) updateFor(cid, (list) => list.filter((m) => String(m._id) !== String(messageId)));
+      else replaceSaved(cid, data.message);
+    },
+    [conversationId, replaceSaved, updateFor],
+  );
+
   const isOpen = (cid) => String(cid) === String(cidRef.current);
 
   useSocketEvent('new_message', ({ message } = {}) => {
@@ -291,6 +322,8 @@ export function useMessages(conversationId, currentUser) {
     sendVoiceNote,
     retryMessage,
     discardMessage,
+    editMessage,
+    deleteMessage,
     loadOlder,
     reload: loadLatest,
   };

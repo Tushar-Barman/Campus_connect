@@ -12,12 +12,14 @@ import ConnectionBanner from './ConnectionBanner.jsx';
 import GroupInfoPanel from '../group/GroupInfoPanel.jsx';
 import ContactPanel from '../group/ContactPanel.jsx';
 import ChatMemoryPanel from '../memory/ChatMemoryPanel.jsx';
+import ConfirmDialog from '../ui/ConfirmDialog.jsx';
 import { EmptyState } from '../ui/Feedback.jsx';
 import { buttonClass } from '../ui/Button.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useConversationList } from '../../context/ConversationsContext.jsx';
 import { conversationsApi, getErrorMessage } from '../../lib/api.js';
 import { isNotFoundError } from '../../lib/conversation.js';
+import { canDeleteForEveryone, isDeleted } from '../../lib/messageRules.js';
 
 const HIGHLIGHT_MS = 1600;
 
@@ -37,6 +39,8 @@ export default function ChatWindow({ conversation }) {
   const closePanel = useCallback(() => setPanel(null), []);
   const [highlightId, setHighlightId] = useState(null);
   const [notice, setNotice] = useState('');
+  const [editing, setEditing] = useState(null); // message being edited in the Composer
+  const [deleting, setDeleting] = useState(null); // message waiting for delete confirmation
   const noticeTimer = useRef(null);
 
   const flash = useCallback((text) => {
@@ -78,6 +82,28 @@ export default function ChatWindow({ conversation }) {
       throw error;
     }
   };
+
+  // Round 2: edit / delete. In mock mode (P2 stand-ins) these don't exist, so the menu hides them.
+  const startEdit = useCallback((message) => setEditing(message), []);
+  const askDelete = useCallback((message) => setDeleting(message), []);
+  const onEdit = chat.editMessage ? startEdit : undefined;
+  const onDelete = chat.deleteMessage ? askDelete : undefined;
+
+  const deleteActions = deleting
+    ? [
+        ...(canDeleteForEveryone(deleting, user?._id)
+          ? [{ label: 'Delete for everyone', danger: true, onConfirm: () => chat.deleteMessage(deleting._id, 'everyone') }]
+          : []),
+        { label: 'Delete for me', danger: !canDeleteForEveryone(deleting, user?._id), onConfirm: () => chat.deleteMessage(deleting._id, 'me') },
+      ]
+    : [];
+
+  // If the message being edited gets deleted (e.g. from another tab), leave edit mode.
+  useEffect(() => {
+    if (!editing) return;
+    const current = chat.messages.find((m) => m._id === editing._id);
+    if (!current || isDeleted(current)) setEditing(null);
+  }, [chat.messages, editing]);
 
   const send = (text) => {
     typing.stopTyping(); // P3: call stopTyping() right before sending
@@ -127,6 +153,8 @@ export default function ChatWindow({ conversation }) {
         highlightId={highlightId}
         onPin={(m) => setPinned(m._id, true)}
         onUnpin={(m) => setPinned(m._id, false)}
+        onEdit={onEdit}
+        onDelete={onDelete}
       />
 
       <Composer
@@ -134,6 +162,23 @@ export default function ChatWindow({ conversation }) {
         onInput={typing.notifyTyping}
         onStopTyping={typing.stopTyping}
         onRecorded={chat.sendVoiceNote}
+        editing={editing}
+        onSubmitEdit={(text) => chat.editMessage(editing._id, text)}
+        onCancelEdit={() => setEditing(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        onClose={() => setDeleting(null)}
+        title="Delete message?"
+        message={
+          deleting && isDeleted(deleting)
+            ? 'This removes the deleted-message notice from your view only.'
+            : deleting && canDeleteForEveryone(deleting, user?._id)
+              ? 'Delete for everyone removes it for all members. Delete for me only hides it on your devices.'
+              : 'This hides the message on your devices. Others in the chat will still see it.'
+        }
+        actions={deleteActions}
       />
 
       {conversation.type === 'group' ? (

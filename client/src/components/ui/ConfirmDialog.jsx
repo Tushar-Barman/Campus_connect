@@ -4,10 +4,17 @@ import Button from './Button.jsx';
 import { Alert } from './Feedback.jsx';
 import { getErrorMessage } from '../../lib/api.js';
 
-/** "Are you sure?" dialog. onConfirm may be async; errors are shown inside the dialog. */
-export default function ConfirmDialog({ open, onClose, title, message, confirmLabel = 'Confirm', danger = false, onConfirm }) {
-  const [busy, setBusy] = useState(false);
+/**
+ * "Are you sure?" dialog. onConfirm may be async; errors are shown inside the dialog.
+ * For several choices (e.g. "Delete for everyone" / "Delete for me"), pass
+ * `actions: [{ label, onConfirm, danger? }]` instead of confirmLabel/onConfirm.
+ */
+export default function ConfirmDialog({ open, onClose, title, message, confirmLabel = 'Confirm', danger = false, onConfirm, actions }) {
+  const [busyIndex, setBusyIndex] = useState(-1);
   const [error, setError] = useState('');
+  const busy = busyIndex !== -1;
+
+  const choices = actions ?? [{ label: confirmLabel, onConfirm, danger }];
 
   const close = () => {
     if (busy) return;
@@ -15,16 +22,16 @@ export default function ConfirmDialog({ open, onClose, title, message, confirmLa
     onClose();
   };
 
-  const confirm = async () => {
-    setBusy(true);
+  const run = (index) => async () => {
+    setBusyIndex(index);
     setError('');
     try {
-      await onConfirm();
-      setBusy(false);
+      await choices[index].onConfirm();
+      setBusyIndex(-1);
       onClose();
     } catch (err) {
       setError(getErrorMessage(err));
-      setBusy(false);
+      setBusyIndex(-1);
     }
   };
 
@@ -35,14 +42,22 @@ export default function ConfirmDialog({ open, onClose, title, message, confirmLa
       title={title}
       size="sm"
       footer={
-        <>
+        <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
           <Button variant="secondary" onClick={close} disabled={busy}>
             Cancel
           </Button>
-          <Button variant={danger ? 'danger' : 'primary'} onClick={confirm} loading={busy}>
-            {confirmLabel}
-          </Button>
-        </>
+          {choices.map((choice, index) => (
+            <Button
+              key={choice.label}
+              variant={choice.danger ? 'danger' : 'primary'}
+              onClick={run(index)}
+              loading={busyIndex === index}
+              disabled={busy && busyIndex !== index}
+            >
+              {choice.label}
+            </Button>
+          ))}
+        </div>
       }
     >
       {error ? <Alert className="mb-3">{error}</Alert> : null}
