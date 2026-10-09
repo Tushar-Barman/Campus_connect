@@ -6,6 +6,7 @@ import { notifyConversationCreated } from '../socket/notify.js'; // P3's broadca
 import { HttpError } from '../utils/http.js';
 import { isValidId } from '../utils/validate.js';
 import { toObjectId, sameId } from '../utils/ids.js';
+import { serializeMessageFor } from './messages.js';
 
 /** Populates what the chat list needs: participants (public fields) and the last message with its sender. */
 const withDetails = (query) =>
@@ -38,8 +39,18 @@ async function getUnreadCounts(conversationIds, userId) {
   return new Map(rows.map((row) => [String(row._id), row.count]));
 }
 
-const decorate = (conversation, starred, unread) => ({
+// The sidebar preview: tombstone if deleted, null if this user deleted it "for me".
+// Receipts are dropped because the list never shows them.
+function previewFor(message, userId) {
+  const shaped = serializeMessageFor(message, userId);
+  if (!shaped) return null;
+  const { readBy: _r, deliveredTo: _d, ...rest } = shaped;
+  return rest;
+}
+
+const decorate = (conversation, starred, unread, userId) => ({
   ...conversation,
+  lastMessage: previewFor(conversation.lastMessage, userId),
   isStarred: starred.has(String(conversation._id)),
   unreadCount: unread.get(String(conversation._id)) || 0,
 });
@@ -54,7 +65,7 @@ export async function listConversationsForUser(userId) {
     getStarredSet(userId),
     getUnreadCounts(conversations.map((c) => c._id), userId),
   ]);
-  return conversations.map((c) => decorate(c, starred, unread));
+  return conversations.map((c) => decorate(c, starred, unread, userId));
 }
 
 /** GET /conversations/:id, same shape as one list item. 404 if not a member. */
@@ -64,7 +75,7 @@ export async function getConversationDetails(conversationId, userId) {
   if (!conversation) throw new HttpError(404, 'Conversation not found');
 
   const [starred, unread] = await Promise.all([getStarredSet(userId), getUnreadCounts([_id], userId)]);
-  return decorate(conversation, starred, unread);
+  return decorate(conversation, starred, unread, userId);
 }
 
 /**

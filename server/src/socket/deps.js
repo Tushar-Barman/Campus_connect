@@ -7,3 +7,4 @@ export { createMessage } from '../services/messages.js';
 export { PUBLIC_USER_FIELDS, default as User } from '../models/User.js';
 export { default as Conversation } from '../models/Conversation.js';
 export { default as Message } from '../models/Message.js';
+export { serializeMessageFor, populateMessage, buildViewerContexts } from '../services/messages.js';

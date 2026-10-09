@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { User, PUBLIC_USER_FIELDS, toPublicUser } from '../models/User.js';
+import { User, PUBLIC_USER_FIELDS, toOwnUser } from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
 import { authLimiter } from '../middleware/rateLimit.js';
 import { signToken } from '../utils/auth.js';
@@ -41,7 +41,7 @@ router.post(
       throw err;
     }
 
-    res.status(201).json({ token: signToken(user._id), user: toPublicUser(user) });
+    res.status(201).json({ token: signToken(user._id), user: toOwnUser(user) });
   })
 );
 
@@ -56,11 +56,11 @@ router.post(
     }
     const email = body.email.trim().toLowerCase();
 
-    const user = await User.findOne({ email }).select('+passwordHash');
+    const user = await User.findOne({ email }).select('+passwordHash +settings');
     const passwordOk = await bcrypt.compare(body.password, user ? user.passwordHash : DUMMY_HASH);
     if (!user || !passwordOk) throw new HttpError(401, INVALID_LOGIN);
 
-    res.json({ token: signToken(user._id), user: toPublicUser(user) });
+    res.json({ token: signToken(user._id), user: toOwnUser(user) });
   })
 );
 
@@ -76,9 +76,9 @@ router.get(
   '/me',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const user = await User.findById(req.userId).select(PUBLIC_USER_FIELDS).lean();
+    const user = await User.findById(req.userId).select(`${PUBLIC_USER_FIELDS} settings`).lean();
     if (!user) throw new HttpError(401, 'Account no longer exists');
-    res.json({ user });
+    res.json({ user: toOwnUser(user) });
   })
 );
 

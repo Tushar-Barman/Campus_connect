@@ -46,9 +46,12 @@ export function errorText(error, fallback = 'Something went wrong.') {
 
 export function previewText(message) {
   if (!message) return '';
+  if (message.deletedAt) return 'This message was deleted';
   if (message.messageType === 'voice') return '🎤 Voice note';
-  if (message.messageType === 'image') return '📷 Photo';
-  if (message.messageType === 'file') return '📎 File';
+  if (message.messageType === 'image') return message.text ? `📷 ${message.text}` : '📷 Photo';
+  if (message.messageType === 'file') return `📎 ${message.fileName || 'File'}`;
+  if (message.messageType === 'location') return `📍 ${message.location?.label || 'Location'}`;
+  if (message.messageType === 'location_request') return '📍 Asked for a location';
   return message.text || '';
 }
 

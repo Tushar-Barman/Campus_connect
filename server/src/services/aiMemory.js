@@ -53,23 +53,37 @@ function gemini() {
 }
 
 // "[2026-10-09 14:05 UTC] Asha: see you at the lab"
+// Edited messages already hold their new text; deleted ones never reach here.
+const stripTags = (text) => text.replace(/<\/?transcript>/gi, '');
+
+function describe(message) {
+  switch (message.messageType) {
+    case 'text':
+      return stripTags(message.text);
+    case 'voice':
+      return '[voice note]';
+    case 'location':
+      return '[shared a location]';
+    case 'location_request':
+      return '[asked for a location]';
+    case 'file':
+      return `[file: ${stripTags(message.fileName || 'document')}]`;
+    default:
+      return `[${message.messageType}]`;
+  }
+}
+
 function formatLine(message) {
   const at = new Date(message.createdAt).toISOString().slice(0, 16).replace('T', ' ');
   const name = message.senderId?.name ?? 'Unknown';
-  const body =
-    message.messageType === 'text'
-      ? message.text.replace(/<\/?transcript>/gi, '')
-      : message.messageType === 'voice'
-        ? '[voice note]'
-        : `[${message.messageType}]`;
-  return `[${at} UTC] ${name}: ${body}`;
+  return `[${at} UTC] ${name}: ${describe(message)}`;
 }
 
 async function loadRecentMessages(conversationId) {
-  const recent = await Message.find({ conversationId })
+  const recent = await Message.find({ conversationId, deletedAt: { $exists: false } })
     .sort({ createdAt: -1 })
     .limit(HISTORY_LIMIT)
-    .select('senderId messageType text createdAt')
+    .select('senderId messageType text fileName createdAt')
     .populate('senderId', 'name')
     .lean();
   return recent.reverse();
@@ -136,6 +150,11 @@ async function generate(messages) {
   });
   const response = await withTimeout(request, controller);
   return parseResult(response.text);
+}
+
+/** Round 2: edits and deletes change history without changing lastMessage, so drop the cached summary. */
+export function invalidateChatMemory(conversationId) {
+  cache.delete(String(conversationId));
 }
 
 function remember(conversationId, entry) {

@@ -74,6 +74,18 @@ export function useConversations(currentUserId, openConversationId) {
     });
   });
 
+  // Round 2: keep the sidebar preview right when the last message is edited or deleted.
+  useSocketEvent('message_updated', ({ message } = {}) => {
+    if (!message?._id) return;
+    setConversations((list) =>
+      list.map((c) =>
+        idOf(c) === String(message.conversationId) && c.lastMessage && idOf(c.lastMessage) === String(message._id)
+          ? { ...c, lastMessage: message.hidden ? null : message }
+          : c,
+      ),
+    );
+  });
+
   useSocketEvent('conversation_created', ({ conversation } = {}) => {
     if (!conversation) return;
     setConversations((list) =>

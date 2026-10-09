@@ -14,6 +14,7 @@
     "smoke:part2": "node scripts/smoke-part2.js",
     "smoke:part3": "node scripts/smoke-part3.js",
     "smoke:realtime": "node scripts/smoke-realtime.js",
+    "smoke:round2": "node scripts/smoke-round2.js",
     "smoke:all": "node scripts/smoke.js && node scripts/smoke-part2.js && node scripts/smoke-part3.js"
   },
   "dependencies": {

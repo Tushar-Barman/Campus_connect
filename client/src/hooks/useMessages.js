@@ -240,6 +240,18 @@ export function useMessages(conversationId, currentUser) {
     }
   });
 
+  // Round 2: edits, deletes for everyone, answered location requests.
+  // `hidden: true` means this user deleted it "for me" in another tab.
+  useSocketEvent('message_updated', ({ message } = {}) => {
+    if (!message?._id || !isOpen(message.conversationId)) return;
+    const id = String(message._id);
+    updateFor(message.conversationId, (list) =>
+      message.hidden
+        ? list.filter((m) => String(m._id) !== id)
+        : list.map((m) => (String(m._id) === id ? confirmed({ ...message, clientId: m.clientId }) : m)),
+    );
+  });
+
   useSocketEvent('message_delivered', (payload) => {
     if (payload && isOpen(payload.conversationId)) {
       updateFor(payload.conversationId, (list) => applyDelivered(list, payload));

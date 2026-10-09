@@ -20,7 +20,8 @@ const isMember = (conversation, userId) => conversation.participants.some((p) =>
  * Per-user fields (isStarred, unreadCount) differ between members, so events
  * sent to everyone carry the shared fields only; clients keep their own values.
  */
-const sharedView = ({ isStarred, unreadCount, ...rest }) => rest;
+// lastMessage is per-viewer too (deleted "for me" differs per user), so clients keep their own.
+const sharedView = ({ isStarred, unreadCount, lastMessage, ...rest }) => rest;
 
 /** Member + group + admin, else 404 / 400 / 403. */
 export async function loadGroupAsAdmin(conversationId, userId) {

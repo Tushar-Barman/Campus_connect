@@ -17,12 +17,116 @@ const DEFAULT_PAGE_SIZE = 30;
 const MAX_PAGE_SIZE = 50;
 const MAX_PINNED = 50;
 const MAX_DURATION_SECONDS = 600;
+const REPLY_SNIPPET_LENGTH = 120;
+
+/** A location request nobody answered within this time counts as expired (computed on read). */
+export const LOCATION_REQUEST_TTL_MS = 10 * 60 * 1000;
 
 const MESSAGE_NOT_FOUND = 'Message not found';
 
-// Same sender shape as P3's `new_message`, so history and live messages render identically.
-const withSender = (query) =>
-  query.populate('senderId', PUBLIC_USER_FIELDS).populate('pinnedBy', PUBLIC_USER_FIELDS);
+const idOf = (value) => String(value?._id ?? value);
+
+/**
+ * Populates everything a client renders: the sender (same shape as P3's `new_message`),
+ * who pinned it, and the quoted message for replies.
+ */
+export const populateMessage = (query) =>
+  query
+    .populate('senderId', PUBLIC_USER_FIELDS)
+    .populate('pinnedBy', PUBLIC_USER_FIELDS)
+    .populate({
+      path: 'replyTo',
+      select: 'senderId messageType text fileName deletedAt',
+      populate: { path: 'senderId', select: 'name' },
+    });
+
+// ── Serializer (Round 2) ────────────────────────────────────
+
+function replyPreview(original) {
+  if (!original || typeof original !== 'object' || !original._id) return null;
+  const deleted = Boolean(original.deletedAt);
+  const sender = original.senderId && typeof original.senderId === 'object' ? original.senderId : null;
+  return {
+    _id: original._id,
+    senderId: sender ? { _id: sender._id, name: sender.name } : null,
+    messageType: original.messageType,
+    text: deleted ? '' : (original.text || '').slice(0, REPLY_SNIPPET_LENGTH),
+    ...(original.fileName && !deleted ? { fileName: original.fileName } : {}),
+    deleted,
+  };
+}
+
+/** 'pending' requests older than the TTL are reported as 'expired'. */
+export function effectiveRequestStatus(message, now = Date.now()) {
+  if (message.messageType !== 'location_request') return message.requestStatus;
+  const status = message.requestStatus || 'pending';
+  if (status === 'pending' && now - new Date(message.createdAt).getTime() > LOCATION_REQUEST_TTL_MS) {
+    return 'expired';
+  }
+  return status;
+}
+
+/**
+ * The ONE place a message is shaped for a client. Every path that sends a message
+ * to a browser (GET /messages, pinned, the send ack, new_message, message_updated,
+ * the sidebar's lastMessage) goes through here.
+ *
+ *   viewerId  who will see it (null for a payload that is identical for everyone)
+ *   ctx       receipt privacy for this viewer, from buildViewerContexts():
+ *               ctx.viewerReceiptsOff  viewer turned read receipts off → sees nobody's reads
+ *               ctx.receiptsOff        Set of user ids whose reads are hidden from others
+ *               ctx.blocked            Set of user ids in a block relation with the viewer
+ *
+ * Returns null if the viewer deleted the message "for me".
+ */
+export function serializeMessageFor(message, viewerId, ctx = {}) {
+  if (!message) return null;
+  const viewer = viewerId ? String(viewerId) : null;
+  if (viewer && (message.hiddenFor || []).some((id) => idOf(id) === viewer)) return null;
+
+  if (message.deletedAt) {
+    return {
+      _id: message._id,
+      conversationId: message.conversationId,
+      senderId: message.senderId,
+      createdAt: message.createdAt,
+      deletedAt: message.deletedAt,
+      messageType: message.messageType,
+      ...(message.clientId ? { clientId: message.clientId } : {}),
+    };
+  }
+
+  // Never send anyone's "deleted for me" list.
+  const { hiddenFor: _hidden, ...out } = message;
+
+  if (message.replyTo !== undefined) out.replyTo = replyPreview(message.replyTo);
+  if (message.messageType === 'location_request') out.requestStatus = effectiveRequestStatus(message);
+
+  const isViewer = (userId) => viewer !== null && userId === viewer;
+  const hideRead = (userId) =>
+    !isViewer(userId) &&
+    Boolean(ctx.viewerReceiptsOff || ctx.receiptsOff?.has(userId) || ctx.blocked?.has(userId));
+  const hideDelivered = (userId) => !isViewer(userId) && Boolean(ctx.blocked?.has(userId));
+
+  if (Array.isArray(out.readBy)) out.readBy = out.readBy.filter((r) => !hideRead(idOf(r.user)));
+  if (Array.isArray(out.deliveredTo)) out.deliveredTo = out.deliveredTo.filter((r) => !hideDelivered(idOf(r.user)));
+  return out;
+}
+
+/**
+ * Receipt-privacy context for each viewer of a conversation, loaded once per
+ * request or socket event (never one query per message).
+ * Returns (viewerId) => ctx for serializeMessageFor().
+ */
+export async function buildViewerContexts(_participantIds) {
+  const empty = {};
+  return () => empty;
+}
+
+/** Shorthand for a single viewer. */
+export async function buildViewerContext(viewerId, participantIds) {
+  return (await buildViewerContexts(participantIds))(String(viewerId));
+}
 
 function parsePageSize(limit) {
   if (limit === undefined || limit === '') return DEFAULT_PAGE_SIZE;
@@ -94,23 +198,26 @@ export async function createMessage(fields = {}) {
 /**
  * One page of history, returned oldest → newest.
  * `before` = ISO date cursor (send the createdAt of the oldest message you have).
+ * Messages the user deleted "for me" are left out.
  */
 export async function getMessages(conversationId, userId, { before, limit } = {}) {
   const conversation = await loadConversationForUser(conversationId, userId, { lean: true });
   const pageSize = parsePageSize(limit);
   const beforeDate = parseBefore(before);
 
-  const filter = { conversationId: conversation._id };
+  const filter = { conversationId: conversation._id, hiddenFor: { $ne: toObjectId(userId) } };
   if (beforeDate) filter.createdAt = { $lt: beforeDate };
 
   // Fetch one extra row to know whether older messages exist.
-  const rows = await withSender(
-    Message.find(filter).sort({ createdAt: -1, _id: -1 }).limit(pageSize + 1)
-  ).lean();
+  const [rows, ctx] = await Promise.all([
+    populateMessage(Message.find(filter).sort({ createdAt: -1, _id: -1 }).limit(pageSize + 1)).lean(),
+    buildViewerContext(userId, conversation.participants),
+  ]);
 
   const hasMore = rows.length > pageSize;
   if (hasMore) rows.pop();
-  return { messages: rows.reverse(), hasMore };
+  const messages = rows.reverse().map((m) => serializeMessageFor(m, userId, ctx)).filter(Boolean);
+  return { messages, hasMore };
 }
 
 /**
@@ -137,7 +244,10 @@ export async function markRead(conversationId, userId) {
   return readResult.modifiedCount;
 }
 
-/** Pins (pinned = true) or unpins a message. Any member may do either. */
+/**
+ * Pins (pinned = true) or unpins a message. Any member may do either.
+ * The returned message goes to every member, so it carries no receipts.
+ */
 export async function setPinned(conversationId, messageId, userId, pinned) {
   const conversation = await loadConversationForUser(conversationId, userId, { lean: true });
   if (!isValidId(String(messageId ?? ''))) throw new HttpError(404, MESSAGE_NOT_FOUND);
@@ -147,20 +257,26 @@ export async function setPinned(conversationId, messageId, userId, pinned) {
     : { $set: { isPinned: false }, $unset: { pinnedAt: 1, pinnedBy: 1 } };
 
   // Filtering on conversationId too stops pinning a message from another chat via this one.
-  const message = await withSender(
-    Message.findOneAndUpdate({ _id: messageId, conversationId: conversation._id }, update, { new: true })
-  ).lean();
-  if (!message) throw new HttpError(404, MESSAGE_NOT_FOUND);
+  // A message deleted for everyone can't be pinned.
+  const filter = { _id: messageId, conversationId: conversation._id };
+  if (pinned) filter.deletedAt = { $exists: false };
+  const saved = await populateMessage(Message.findOneAndUpdate(filter, update, { new: true })).lean();
+  if (!saved) throw new HttpError(404, MESSAGE_NOT_FOUND);
 
+  const { readBy: _r, deliveredTo: _d, ...message } = serializeMessageFor(saved, null);
   return { message, conversation };
 }
 
 /** Pinned messages of a conversation, most recently pinned first. */
 export async function getPinnedMessages(conversationId, userId) {
   const conversation = await loadConversationForUser(conversationId, userId, { lean: true });
-  return withSender(
-    Message.find({ conversationId: conversation._id, isPinned: true })
-      .sort({ pinnedAt: -1 })
-      .limit(MAX_PINNED)
-  ).lean();
+  const [rows, ctx] = await Promise.all([
+    populateMessage(
+      Message.find({ conversationId: conversation._id, isPinned: true, hiddenFor: { $ne: toObjectId(userId) } })
+        .sort({ pinnedAt: -1 })
+        .limit(MAX_PINNED)
+    ).lean(),
+    buildViewerContext(userId, conversation.participants),
+  ]);
+  return rows.map((m) => serializeMessageFor(m, userId, ctx)).filter(Boolean);
 }
