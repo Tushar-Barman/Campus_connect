@@ -95,8 +95,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, status, isAuthed: status === 'authed', login, register, logout, updateUser, retry: checkSession }),
-    [user, status, login, register, logout, updateUser, checkSession],
+    // forgetSession: drop the local session without calling the server (Round 2: the account was just deleted).
+    () => ({ user, status, isAuthed: status === 'authed', login, register, logout, forgetSession: clearSession, updateUser, retry: checkSession }),
+    [user, status, login, register, logout, clearSession, updateUser, checkSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

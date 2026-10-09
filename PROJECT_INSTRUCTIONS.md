@@ -147,6 +147,15 @@ Password: minimum 8 characters. Email normalised to lowercase.
 | GET | `/users/search?q=&campus=` | Name or email match, excludes yourself, max 20 → `{ users }`. **(Round 2)** `campus` defaults to your own campus; `all` = every campus; any other value must be a campus id (else 400). Campus only affects discovery: existing cross-campus chats keep working. |
 | GET | `/users/:id` | Public profile → `{ user }` |
 | PUT | `/users/profile` | `{ name?, bio?, campus? }` → `{ user }` (**Round 2:** `campus` must be a valid campus id) |
+| DELETE | `/users/me` | **(Round 2)** `{ password }` → `{ deleted: true, groupsLeft, chatsDeleted }`. Re-checks the password with bcrypt: a wrong one is 401, and the client must **not** log out on it. In order:
+1. In groups, your messages become tombstones and you leave, using `removeMember`, which hands over admin and deletes emptied groups.
+2. Private chats are deleted with their messages, and `conversation_removed` is sent.
+3. You're pulled from other users' `blockedUsers`, and stars on the deleted chats are dropped.
+4. Your avatar is deleted from Cloudinary (best effort).
+5. The User document is deleted.
+6. All your sockets are disconnected.
+
+Every step re-reads the current state, so it's safe to retry after a partial failure. |
 | PUT | `/users/settings` | **(Round 2)** `{ readReceipts?, theme?, accent?, density?, fontScale?, bubbleStyle? }` → `{ settings }` (all keys, defaults filled in). Unknown keys or values → 400. Only your own settings. |
 | POST | `/users/profile-picture` | multipart field `picture` (Phase 3) |
 | DELETE | `/users/profile-picture` | Phase 3 |
@@ -229,6 +238,7 @@ Rules for answering a request:
 | `message_pinned` | `{ message }` |
 | `message_unpinned` | `{ conversationId, messageId }` |
 | `group_member_added` / `group_member_removed` | `{ conversationId, userId }` (Phase 3) |
+| `conversation_removed` | `{ conversationId }` (Round 2). The chat no longer exists (the other person deleted their account): remove it from the list and leave it if it's open. |
 | `message_updated` | `{ message }` (Round 2). An existing message changed: it was edited, deleted for everyone, or a location request was answered. The payload is serialized **per viewer**, so it's emitted to each participant separately. Replace the message by `_id`, and update the sidebar preview if it's the chat's `lastMessage`. For "delete for me", only the user's own tabs get `{ message: { _id, conversationId, hidden: true } }`: remove it from the list. |
 
 **Client rules:**

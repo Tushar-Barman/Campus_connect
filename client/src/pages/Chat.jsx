@@ -77,6 +77,13 @@ export default function Chat() {
     toast.info(name ? `You were removed from ${name}` : 'You were removed from a group');
   });
 
+  // Round 2: the open chat was deleted (the other person deleted their account).
+  useSocketEvent('conversation_removed', ({ conversationId: cid } = {}) => {
+    if (cid !== conversationId) return;
+    toast.info('This chat is no longer available');
+    navigate('/chat', { replace: true });
+  });
+
   // Unread total in the browser tab title.
   const unreadTotal = list.conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
   useEffect(() => {

@@ -25,7 +25,8 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-const AUTH_ATTEMPT = /\/auth\/(login|register)$/;
+// Round 2: a wrong password on DELETE /users/me (account deletion) must not log out either.
+const AUTH_ATTEMPT = /\/auth\/(login|register)$|\/users\/me$/;
 
 api.interceptors.response.use(
   (response) => response,
@@ -92,6 +93,7 @@ export const usersApi = {
   removePicture: () => data(api.delete('/users/profile-picture')),
   // Round 2: { readReceipts?, theme?, accent?, density?, fontScale?, bubbleStyle? } → { settings }
   updateSettings: (patch) => data(api.put('/users/settings', patch)),
+  deleteAccount: (password) => data(api.delete('/users/me', { data: { password } })),
 };
 
 export const campusesApi = {

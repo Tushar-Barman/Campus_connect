@@ -115,6 +115,12 @@ export function useConversations(currentUserId, openConversationId) {
     );
   });
 
+  // Round 2: the chat no longer exists (e.g. the other person deleted their account).
+  useSocketEvent('conversation_removed', ({ conversationId } = {}) => {
+    if (!conversationId) return;
+    setConversations((list) => list.filter((c) => idOf(c) !== String(conversationId)));
+  });
+
   useSocketEvent('group_member_removed', ({ conversationId, userId } = {}) => {
     if (String(userId) === String(currentUserId)) {
       setConversations((list) => list.filter((c) => idOf(c) !== String(conversationId)));

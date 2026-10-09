@@ -71,3 +71,8 @@ export function notifyMessageUnpinned(conversation, messageId) {
     messageId: idOf(messageId),
   });
 }
+
+// Round 2: a chat is gone for these users (e.g. the other person deleted their account).
+export function notifyConversationRemoved(userIds, conversationId) {
+  emitToUsers(userIds, 'conversation_removed', { conversationId: idOf(conversationId) });
+}

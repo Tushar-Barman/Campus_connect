@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Mail, ShieldCheck } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { AlertTriangle, ArrowLeft, Mail, ShieldCheck } from 'lucide-react';
 import Button from '../components/ui/Button.jsx';
 import Input from '../components/ui/Input.jsx';
 import { Alert } from '../components/ui/Feedback.jsx';
 import PictureUploader from '../components/media/PictureUploader.jsx';
 import Switch from '../components/ui/Switch.jsx';
+import DeleteAccountDialog from '../components/account/DeleteAccountDialog.jsx';
 import CampusSelect from '../components/campus/CampusSelect.jsx';
 import { useCampuses } from '../lib/campuses.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -16,7 +17,16 @@ import { validateName } from '../lib/validation.js';
 const BIO_MAX = 160;
 
 export default function Profile() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, forgetSession } = useAuth();
+  const navigate = useNavigate();
+  const [deleting, setDeleting] = useState(false);
+
+  // The account no longer exists: drop the session locally (no logout call) and go home.
+  const onAccountDeleted = () => {
+    forgetSession();
+    navigate('/', { replace: true });
+    toast.success('Your account was deleted');
+  };
   const toast = useToast();
 
   const { campuses } = useCampuses();
@@ -171,6 +181,20 @@ export default function Profile() {
             />
           </section>
         ) : null}
+
+        <section className="mt-6 rounded-card border border-danger/30 bg-surface p-6 shadow-card animate-slide-up" aria-labelledby="danger-title">
+          <h2 id="danger-title" className="flex items-center gap-2 text-sm font-semibold text-danger">
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+            Danger zone
+          </h2>
+          <p className="mt-2 text-sm text-ink-muted">
+            Permanently delete your account, your private chats and your messages in groups.
+          </p>
+          <Button variant="danger" className="mt-4" onClick={() => setDeleting(true)}>
+            Delete account
+          </Button>
+        </section>
+        <DeleteAccountDialog open={deleting} onClose={() => setDeleting(false)} onDeleted={onAccountDeleted} />
       </main>
     </div>
   );

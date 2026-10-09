@@ -17,3 +17,8 @@ export function emitToUsers(userIds, event, payload) {
   const rooms = [...new Set(userIds.map((id) => `user:${idOf(id)}`))];
   if (rooms.length) getIO().to(rooms).emit(event, payload);
 }
+
+// Round 2: closes every socket of a user (all tabs), e.g. after account deletion.
+export function disconnectUser(userId) {
+  getIO().in(`user:${idOf(userId)}`).disconnectSockets(true);
+}

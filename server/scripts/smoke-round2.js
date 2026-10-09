@@ -517,6 +517,56 @@ async function phase7({ A, B, C, sA, sB, privId }) {
   check('location rate limit → 429', limited);
 }
 
+// ── Phase 8: account deletion ────────────────────────────────
+async function phase8({ B, C, sB }) {
+  section('Phase 8 · delete account');
+  const X = await register('Xena Leaving', 'x');
+  const sX = await listen(X.token);
+  const priv = (await call('POST', '/conversations', { token: X.token, body: { userId: B.id } })).data?.conversation?._id;
+  const group = (await call('POST', '/conversations/group', { token: X.token, body: { name: 'X admin group', memberIds: [B.id, C.id] } })).data?.conversation?._id;
+  await emitAck(sX.socket, 'send_message', { conversationId: priv, text: 'private hello', clientId: `p8a-${stamp}` });
+  const gm = (await emitAck(sX.socket, 'send_message', { conversationId: group, text: 'group hello from X', clientId: `p8b-${stamp}` })).message;
+  await call('POST', `/conversations/${priv}/star`, { token: B.token });
+  await User.updateOne({ _id: B.id }, { $addToSet: { blockedUsers: new mongoose.Types.ObjectId(X.id) } });
+
+  const noPw = await call('DELETE', '/users/me', { token: X.token, body: {} });
+  check('no password → 400', noPw.status === 400, show(noPw));
+  const wrong = await call('DELETE', '/users/me', { token: X.token, body: { password: 'not-my-password' } });
+  check('wrong password → 401', wrong.status === 401, show(wrong));
+  const stillThere = await call('GET', '/auth/me', { token: X.token });
+  check('…and the account and session are untouched', stillThere.status === 200);
+
+  sB.events.length = 0;
+  const del = await call('DELETE', '/users/me', { token: X.token, body: { password: PASSWORD } });
+  check('correct password → account deleted', del.status === 200 && del.data?.deleted === true && del.data.groupsLeft === 1 && del.data.chatsDeleted === 1, show(del));
+  check('User document is gone', !(await User.exists({ _id: X.id })));
+  const after = await call('GET', '/auth/me', { token: X.token });
+  check('their token no longer works (401)', after.status === 401, show(after));
+  await sleep(500);
+  check('their sockets were disconnected', sX.socket.connected === false);
+
+  check('private chat and its messages are deleted', !(await Conversation.exists({ _id: priv })) && !(await Message.exists({ conversationId: priv })));
+  const removed = await waitFor(sB.events, 'conversation_removed', (p) => p?.conversationId === priv);
+  check('the other person gets conversation_removed', Boolean(removed));
+  const listB = await call('GET', '/conversations', { token: B.token });
+  check("it's gone from their chat list", !listB.data?.conversations?.some((c) => c._id === priv));
+
+  const g = await Conversation.findById(group).lean();
+  check('group survives without them, admin handed over', g && g.participants.length === 2 && !g.participants.some((p) => String(p) === X.id) && String(g.groupAdmin) === B.id, JSON.stringify(g && { p: g.participants, admin: g.groupAdmin }));
+  const tomb = await Message.findById(gm._id).lean();
+  check('their group messages became tombstones', tomb?.deletedAt && tomb.text === '', JSON.stringify(tomb));
+  const left = await waitFor(sB.events, 'group_member_removed', (p) => p?.conversationId === group && p.userId === X.id);
+  check('group members get group_member_removed', Boolean(left));
+  const histB = await call('GET', `/messages/${group}`, { token: B.token });
+  check('group history still loads for the others', histB.status === 200 && histB.data.messages.some((m) => m._id === gm._id && m.deletedAt));
+
+  const bDoc = await User.findById(B.id).select('+blockedUsers +starredConversations').lean();
+  check("removed from others' blockedUsers and stars", !bDoc.blockedUsers.some((id) => String(id) === X.id) && !bDoc.starredConversations.some((id) => String(id) === priv));
+  const again = await call('DELETE', '/users/me', { token: X.token, body: { password: PASSWORD } });
+  check('repeating the request after deletion → 401 (nothing left to do)', again.status === 401, show(again));
+  sX.socket.close();
+}
+
 async function main() {
   console.log(`\nCampusConnect Round 2 smoke test → ${BASE}`);
   try {
@@ -544,6 +594,7 @@ async function main() {
     await phase5(ctx);
     await phase6(ctx);
     await phase7(ctx);
+    await phase8(ctx);
   } finally {
     [sA, sB, sC].forEach((s) => s.socket.close());
     // Every user this run created, including ones made inside a phase.

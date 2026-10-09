@@ -342,6 +342,15 @@ async function loadMessageIn(conversation, messageId) {
 
 const isSender = (message, userId) => idOf(message.senderId) === String(userId);
 
+/** The update that turns a message into a tombstone ("deleted for everyone"). */
+export const tombstoneUpdate = (deletedAt = new Date()) => ({
+  $set: { deletedAt, text: '', mediaUrl: '', isPinned: false },
+  $unset: {
+    mediaType: 1, duration: 1, fileName: 1, fileSize: 1, mimeType: 1, location: 1,
+    mentions: 1, replyTo: 1, pinnedAt: 1, pinnedBy: 1, requestStatus: 1, respondedWith: 1,
+  },
+});
+
 /**
  * PATCH /messages/:cid/:mid { text }: the sender edits their own text message
  * within 15 minutes. Returns { message (populated), conversation }.
@@ -389,17 +398,7 @@ export async function deleteMessage(conversationId, messageId, userId, scope) {
   }
 
   const message = await populateMessage(
-    Message.findOneAndUpdate(
-      { _id: existing._id },
-      {
-        $set: { deletedAt: existing.deletedAt ?? new Date(), text: '', mediaUrl: '', isPinned: false },
-        $unset: {
-          mediaType: 1, duration: 1, fileName: 1, fileSize: 1, mimeType: 1, location: 1,
-          mentions: 1, replyTo: 1, pinnedAt: 1, pinnedBy: 1, requestStatus: 1, respondedWith: 1,
-        },
-      },
-      { new: true }
-    )
+    Message.findOneAndUpdate({ _id: existing._id }, tombstoneUpdate(existing.deletedAt ?? new Date()), { new: true })
   ).lean();
 
   return {

@@ -16,6 +16,7 @@ import { escapeRegex, isValidId, requireCampus, requireString } from '../utils/v
 import { IMAGE_TYPES } from '../utils/fileType.js';
 import { readUpload } from '../utils/multipart.js';
 import { avatarPublicId, destroyAsset, requireStorage, uploadBuffer } from '../services/storage.js';
+import { deleteAccount } from '../services/accounts.js';
 
 const SEARCH_LIMIT = 20;
 const MAX_QUERY_LENGTH = 50;
@@ -142,6 +143,15 @@ router.delete(
       .select(PUBLIC_USER_FIELDS)
       .lean();
     res.json({ user });
+  })
+);
+
+// DELETE /api/users/me  { password } → { deleted: true, groupsLeft, chatsDeleted }
+// Round 2. Wrong password → 401 (the client does NOT log out on this one).
+router.delete(
+  '/me',
+  asyncHandler(async (req, res) => {
+    res.json(await deleteAccount(req.userId, req.body?.password));
   })
 );
 
