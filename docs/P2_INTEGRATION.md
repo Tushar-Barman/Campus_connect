@@ -23,7 +23,9 @@ The frontend now follows P3's directions. P2's earlier duplicate socket layer, c
 | 404 from `useMessages` → "This conversation is no longer available" | ✅ `ChatWindow.jsx` |
 | Star → REST, then `patchConversation(id, { isStarred })` | ✅ Optimistic, rolled back on error |
 
-**Withdrawn** (P3: "no contract changed"): P2's proposed `POST /conversations/:id/picture` and `conversation_updated` event. The group photo is now **display-only**; the admin can still rename and manage members. After a rename or a member change, P2 calls `reload()` from `useConversations`.
+**Withdrawn** (P3: "no contract changed"): P2's proposed `POST /conversations/:id/picture`. The group photo is uploaded through `PUT /conversations/:id` (multipart `picture`) instead.
+
+**Correction:** the `conversation_updated { conversation }` event **does exist in the code**. P1's `services/groups.js` emits it after a group rename, a picture change or an admin hand-over, with shared fields only, and `useConversations` merges it while keeping each user's own `isStarred` and `unreadCount`. It's documented in `PROJECT_INSTRUCTIONS.md` §7. P2's extra `reload()` after a rename is harmless.
 
 ---
 

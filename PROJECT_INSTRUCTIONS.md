@@ -3,6 +3,8 @@
 Shared rules for all three developers and for any AI assistant working on this repo.
 If code and this file disagree, fix one of them in the same commit and tell the team.
 
+> **Round 2** added edit/delete, replies and @mentions, campus at sign-up and campus search (all 23 IITs), photos and documents, read-receipt privacy, location sharing, account deletion, blocking, themes, wallpapers and emoji. Every addition is marked **(Round 2)** in §5–8 and §12. Nothing that existed before was renamed or removed.
+
 ---
 
 ## 1. What we are building
@@ -55,7 +57,7 @@ Shared: integration, multi-user testing, deployment, demo prep, bug fixing.
 
 ```
 campusconnect/
-├── PROJECT_INSTRUCTIONS.md      ← this file
+├── PROJECT_INSTRUCTIONS.md      ← this file (in the repo root since Round 2)
 ├── README.md                    ← setup/run guide (required by the hackathon)
 ├── server/
 │   ├── .env.example             ← committed; .env is NOT
@@ -241,6 +243,7 @@ Rules for answering a request:
 | `message_pinned` | `{ message }` |
 | `message_unpinned` | `{ conversationId, messageId }` |
 | `group_member_added` / `group_member_removed` | `{ conversationId, userId }` (Phase 3) |
+| `conversation_updated` | `{ conversation }`: group renamed, picture changed or admin handed over. It carries shared fields only (no `isStarred`, `unreadCount`, `hasUnreadMention`, `blockedByMe`, `background` or `lastMessage`), so clients merge it and keep their own per-user values. Sent by `services/groups.js` via `emitToUsers`. |
 | `conversation_background` | `{ conversationId, background }` (Round 2). Sent only to your own tabs after you change a chat's wallpaper. |
 | `block_changed` | `{ userId, blocked }` (Round 2). Sent only to the blocker's own tabs: update `blockedByMe` on the private chat with that user. |
 | `conversation_removed` | `{ conversationId }` (Round 2). The chat no longer exists (the other person deleted their account): remove it from the list and leave it if it's open. |
@@ -361,6 +364,19 @@ VITE_API_URL=http://localhost:5000
 - [ ] Ticks go sent → delivered → read
 - [ ] Star/unstar only changes your own list
 - [ ] Works on a phone-width screen
+
+**Round 2** (automated: `cd server && npm run smoke:round2`, server running):
+- [ ] **Edit:** works within 15 min; after 15 min there is no Edit option, and the API returns 403. Edited messages show "edited" on both sides.
+- [ ] **Delete for everyone:** works within 1 h and shows "This message was deleted" to both people (and in the sidebar); after 1 h only "Delete for me" remains. Delete for me hides it for you only.
+- [ ] **Reply:** clicking the quote jumps to and highlights the original. If the original is further up, you get the "further up" notice.
+- [ ] **Mentions (groups):** the `@` list works with arrow keys, Enter and Esc. Mentions are highlighted, and the mentioned person gets the @ badge until they open the chat.
+- [ ] **Campus search:** your own campus is the default. Another campus shows only its people, with a badge. "All campuses" finds everyone. Existing cross-campus chats keep working.
+- [ ] **Files:** a PDF, docx, xlsx, pptx, txt and GIF are accepted; a renamed `.exe` gives 400 "File content does not match its type"; a ZIP renamed to `.docx` gives 400. A photo over 5 MB or a document over 10 MB gives 413.
+- [ ] **Location:** request → share → the card shows "Location shared · View" → Get directions opens Google Maps. Decline and the 10-minute expiry work. The requester can't answer their own request.
+- [ ] **Receipts off on one side:** that user's reads are hidden from others and they see no reads either (grey ticks); unread counts still clear.
+- [ ] **Block, in both directions:** no private messages, search or presence either way. The blocker sees the banner; the blocked person gets only generic errors. Groups still work. Unblock restores everything.
+- [ ] **Delete account:** a wrong password shows an error and keeps you logged in. The right one deletes the account: private chats disappear for the other person, and in groups the messages become tombstones and admin is handed over.
+- [ ] **Themes:** both themes at 375 px and 1280 px (landing, auth, sidebar, chat, drawers, dialogs, wallpapers, emoji picker). No white flash when reloading in dark mode.
 
 ---
 

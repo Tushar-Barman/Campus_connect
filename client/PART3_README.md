@@ -3,7 +3,7 @@
 > ## ⚠️ Updated after P3's `CAUTION_AND_DIRECTION.md` (2026-10-09)
 > - **Voice notes** use P3's `useVoiceRecorder(onRecorded)` → `<button {...holdProps}>`: **hold to record, release to send, slide away to cancel**. P2's tap mode is gone; a quick tap shows "Hold the button to record a voice note." Playback uses P3's `useAudioPlayer`.
 > - **Chat Memory** uses P3's `useChatMemory`. Lists are **arrays of strings** (P3's decision), e.g. "Meera: I'll bring the Arduino kits…". Errors stay inside the panel.
-> - **Withdrawn contract proposals:** `POST /conversations/:id/picture` and `conversation_updated` (P3: "no contract changed"). The **group photo is display-only**; rename and members still work, followed by `reload()`.
+> - **Withdrawn contract proposal:** `POST /conversations/:id/picture`. (`conversation_updated` was later implemented by P1 and is documented in `PROJECT_INSTRUCTIONS.md` §7.) The **group photo is display-only**; rename and members still work, followed by `reload()`.
 > - Group headers show "N members" (no online count: P3's `usePresence` is per user).
 > - `ChatStore`, `hooks/useChatSocket.js` and P2's `useVoiceRecorder.js` are deleted. See [`P2_INTEGRATION.md`](P2_INTEGRATION.md) for the current architecture, the hook-by-hook map and 8 questions for P3.
 > - Tests after the change: Part 3 E2E **56/56**, Part 2 E2E **48/48**, unit **28 + 22 + 7**.

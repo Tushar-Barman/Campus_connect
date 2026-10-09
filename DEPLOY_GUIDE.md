@@ -24,39 +24,24 @@ Check Node: `node -v` → must print v18.17 or newer.
 
 ---
 
-## 1. Put the repo into its final shape
+## 1. Check the repo shape
 
-The GitHub repo currently holds several versions side by side (`campusconnect-client-part1…v4`,
-a server zip, and partial `client/` and `server/` folders). Render and Vercel need **one**
-`server/` and **one** `client/` folder.
+The repo already has its final shape: **one** `server/` and **one** `client/` folder, which is
+what Render and Vercel deploy. (The old step that merged the part1…v4 folders from a zip is done.)
 
-1. Unzip `campusconnect-final.zip` (sent with this guide). It contains:
+1. On GitHub, the top level should show:
 
    ```
-   campusconnect/
-   ├── README.md            ← hackathon README (architecture, features, setup)
-   ├── DEPLOY_GUIDE.md      ← this file
-   ├── docs/                ← team integration notes (P1, P2, P3)
-   ├── server/              ← P1's server + P3's socket/, services/media.js, services/aiMemory.js
-   └── client/              ← P2's v4 client + P3's src/lib/socket.js and src/hooks/
+   README.md               ← hackathon README (architecture, features, setup)
+   DEPLOY_GUIDE.md         ← this file
+   PROJECT_INSTRUCTIONS.md ← contracts, security rules, testing checklist
+   docs/                   ← team integration notes (P1, P2, P3, Round 2)
+   server/                 ← Express + Socket.IO API
+   client/                 ← React app
    ```
 
-2. Replace the repo contents with it (from your local clone of `Campus_Chatbot`):
-
-   ```bash
-   cd Campus_Chatbot
-   git rm -r --quiet campusconnect-client-part1 campusconnect-client-part2 \
-     campusconnect-client-part3 campusconnect-client-v4 campusconnect-server-p1-final.zip \
-     client server CAUTION_AND_DIRECTION.md INTEGRATION-P3.md
-   # copy everything from the unzipped campusconnect/ folder into Campus_Chatbot/
-   cp -r ../campusconnect/. .
-   git add -A
-   git commit -m "chore: merge P1, P2 and P3 into final server/ and client/"
-   git push
-   ```
-
-3. Confirm on GitHub that the top level shows `server/`, `client/`, `docs/`, `README.md`,
-   `DEPLOY_GUIDE.md` and **no `.env` files**.
+2. Make sure **no `.env` files** are committed (`git ls-files | grep .env` should only list the
+   two `.env.example` files), and that there are no stray nested repos such as `server/src/config/.git`.
 
 > Keep the repo **private** until the hackathon ends (rule in the problem statement).
 > Render and Vercel can both deploy from private repos once you connect GitHub.
@@ -84,9 +69,11 @@ a server zip, and partial `client/` and `server/` folders). Render and Vercel ne
 
 ## 3. Get the optional keys
 
-### 3a. Cloudinary *(optional: pictures and voice notes)*
+### 3a. Cloudinary *(optional: pictures, voice notes, photos and documents)*
 1. Sign up at <https://cloudinary.com>.
 2. **Settings → API Keys** → copy **Cloud name**, **API key**, **API secret**.
+3. **Settings → Security** → turn on **"Allow delivery of PDF and ZIP files"**. Free accounts block it
+   by default, and shared PDFs then fail to open (401). Other documents are not affected.
 
 ### 3b. Gemini *(optional: AI Chat Memory)*
 1. Open <https://aistudio.google.com/apikey> → **Create API key**.
@@ -156,6 +143,7 @@ Open a **second terminal**:
 cd server
 npm run smoke:all        # P1: auth, security, conversations, messages, groups, uploads
 npm run smoke:realtime   # P3: socket auth, live messages, typing, presence, receipts, media/AI guards
+npm run smoke:round2     # Round 2: edit/delete, replies, campuses, files, receipts, location, deletion, blocking, wallpapers
 ```
 
 Every line should be ✅. Both suites create throwaway users. P1's tests delete theirs;
