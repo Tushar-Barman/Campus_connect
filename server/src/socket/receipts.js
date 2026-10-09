@@ -1,4 +1,4 @@
-import { loadConversationForUser, Conversation, Message } from './deps.js';
+import { loadConversationForUser, Conversation, Message, getReceiptsOff } from './deps.js';
 import { emitToUsers } from './emit.js';
 import { idOf, isObjectId, othersIn } from './validate.js';
 
@@ -89,7 +89,15 @@ export function registerReceiptHandlers(socket) {
       );
       if (!result.modifiedCount) return;
 
-      emitToUsers(othersIn(conversation.participants, userId), 'message_read', {
+      // Round 2: read receipts off (WhatsApp-style). The reads above are still stored
+      // for unread counts, but a reader with receipts off tells nobody, and members
+      // with receipts off don't receive anyone's reads either.
+      const receiptsOff = await getReceiptsOff(conversation.participants);
+      if (receiptsOff.has(userId)) return;
+      const recipients = othersIn(conversation.participants, userId).filter((p) => !receiptsOff.has(idOf(p)));
+      if (!recipients.length) return;
+
+      emitToUsers(recipients, 'message_read', {
         conversationId: idOf(conversation),
         userId,
         at,

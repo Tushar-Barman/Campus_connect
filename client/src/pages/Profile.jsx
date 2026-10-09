@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Mail } from 'lucide-react';
+import { ArrowLeft, Mail, ShieldCheck } from 'lucide-react';
 import Button from '../components/ui/Button.jsx';
 import Input from '../components/ui/Input.jsx';
 import { Alert } from '../components/ui/Feedback.jsx';
 import PictureUploader from '../components/media/PictureUploader.jsx';
+import Switch from '../components/ui/Switch.jsx';
 import CampusSelect from '../components/campus/CampusSelect.jsx';
 import { useCampuses } from '../lib/campuses.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -53,6 +54,22 @@ export default function Profile() {
       setServerError(getErrorMessage(err, 'Could not save your profile.'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Round 2: read receipts (moves to the Settings page later).
+  const [savingReceipts, setSavingReceipts] = useState(false);
+  const receiptsOn = user?.settings?.readReceipts !== false;
+  const setReceipts = async (on) => {
+    setSavingReceipts(true);
+    try {
+      const { settings } = await usersApi.updateSettings({ readReceipts: on });
+      updateUser({ settings });
+      toast.success(on ? 'Read receipts turned on' : 'Read receipts turned off');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Could not change read receipts.'));
+    } finally {
+      setSavingReceipts(false);
     }
   };
 
@@ -138,6 +155,22 @@ export default function Profile() {
             </Button>
           </form>
         </div>
+
+        {user?.settings ? (
+          <section className="mt-6 rounded-card border border-border bg-surface p-6 shadow-card animate-slide-up" aria-labelledby="privacy-title">
+            <h2 id="privacy-title" className="mb-4 flex items-center gap-2 text-sm font-semibold">
+              <ShieldCheck className="h-4 w-4 text-brand-600" aria-hidden="true" />
+              Privacy
+            </h2>
+            <Switch
+              label="Read receipts"
+              description="When this is off, nobody sees when you've read their messages, in private chats and groups, and you won't see read receipts from others either. Unread counts still work."
+              checked={receiptsOn}
+              busy={savingReceipts}
+              onChange={setReceipts}
+            />
+          </section>
+        ) : null}
       </main>
     </div>
   );

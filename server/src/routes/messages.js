@@ -12,6 +12,7 @@ import { asyncHandler } from '../utils/http.js';
 import { invalidateChatMemory } from '../services/aiMemory.js'; // P3
 import { destroyMediaUrl } from '../services/storage.js';
 import {
+  buildViewerContext,
   deleteMessage,
   editMessage,
   getMessages,
@@ -97,7 +98,8 @@ router.patch(
     const { message, conversation } = await editMessage(conversationId, messageId, req.userId, req.body?.text);
     invalidateChatMemory(conversation._id);
     await notifyMessageUpdated(conversation, message);
-    res.json({ message: serializeMessageFor(message, req.userId) });
+    const ctx = await buildViewerContext(req.userId, conversation.participants);
+    res.json({ message: serializeMessageFor(message, req.userId, ctx) });
   })
 );
 
@@ -122,7 +124,7 @@ router.delete(
     await notifyMessageUpdated(conversation, message);
     // Best effort: a failed Cloudinary delete never blocks the delete itself.
     if (result.mediaUrl) destroyMediaUrl(result.mediaUrl);
-    return res.json({ message: serializeMessageFor(message, req.userId) });
+    return res.json({ message: serializeMessageFor(message, req.userId) }); // a tombstone has no receipts
   })
 );
 

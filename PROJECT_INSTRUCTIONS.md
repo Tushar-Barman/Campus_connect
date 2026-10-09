@@ -147,6 +147,7 @@ Password: minimum 8 characters. Email normalised to lowercase.
 | GET | `/users/search?q=&campus=` | Name or email match, excludes yourself, max 20 → `{ users }`. **(Round 2)** `campus` defaults to your own campus; `all` = every campus; any other value must be a campus id (else 400). Campus only affects discovery: existing cross-campus chats keep working. |
 | GET | `/users/:id` | Public profile → `{ user }` |
 | PUT | `/users/profile` | `{ name?, bio?, campus? }` → `{ user }` (**Round 2:** `campus` must be a valid campus id) |
+| PUT | `/users/settings` | **(Round 2)** `{ readReceipts?, theme?, accent?, density?, fontScale?, bubbleStyle? }` → `{ settings }` (all keys, defaults filled in). Unknown keys or values → 400. Only your own settings. |
 | POST | `/users/profile-picture` | multipart field `picture` (Phase 3) |
 | DELETE | `/users/profile-picture` | Phase 3 |
 
@@ -210,7 +211,7 @@ Password: minimum 8 characters. Email normalised to lowercase.
 | `user_online` | `{ userId }` |
 | `user_offline` | `{ userId, lastSeen }` |
 | `message_delivered` | `{ conversationId, messageIds[], userId, at }` |
-| `message_read` | `{ conversationId, userId, at }` (all messages up to `at`) |
+| `message_read` | `{ conversationId, userId, at }` (all messages up to `at`). **(Round 2)** Not emitted when the reader has read receipts off, and never sent to members who have them off. |
 | `message_pinned` | `{ message }` |
 | `message_unpinned` | `{ conversationId, messageId }` |
 | `group_member_added` / `group_member_removed` | `{ conversationId, userId }` (Phase 3) |
@@ -223,6 +224,15 @@ Password: minimum 8 characters. Email normalised to lowercase.
 - A user is online if they have **at least one** connected socket (multiple tabs are normal).
 
 **Receipt display (own messages):** one tick = sent · two grey ticks = delivered to all others · two coloured ticks = read by all others.
+
+**Read receipts off (Round 2, `settings.readReceipts = false`, WhatsApp-style):**
+- The user's `readBy` entries are still stored, because unread counts depend on them.
+- The serializer strips those entries from what everyone else sees.
+- A user with receipts off sees nobody's reads either, so their own messages max out at "delivered".
+- This applies to private chats and groups.
+- Who has receipts off is loaded once per request or event (`getReceiptsOff`), never once per message.
+
+**Message info (Round 2):** the client builds Read by / Delivered to / Not delivered yet from the serialized `readBy` and `deliveredTo` plus `conversation.participants`.
 
 ---
 

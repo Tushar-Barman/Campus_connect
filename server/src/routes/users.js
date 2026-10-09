@@ -1,5 +1,14 @@
 import { Router } from 'express';
-import { User, PUBLIC_USER_FIELDS } from '../models/User.js';
+import {
+  User,
+  PUBLIC_USER_FIELDS,
+  ACCENTS,
+  BUBBLE_STYLES,
+  DENSITIES,
+  FONT_SCALES,
+  THEMES,
+  settingsOf,
+} from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
 import { uploadLimiter } from '../middleware/rateLimit.js';
 import { HttpError, asyncHandler } from '../utils/http.js';
@@ -67,6 +76,36 @@ router.put(
       .select(PUBLIC_USER_FIELDS)
       .lean();
     res.json({ user });
+  })
+);
+
+// PUT /api/users/settings  { readReceipts?, theme?, accent?, density?, fontScale?, bubbleStyle? } → { settings }
+// Round 2. Only the owner's own settings; unknown keys or values are a 400.
+const SETTING_RULES = {
+  readReceipts: (v) => typeof v === 'boolean',
+  theme: (v) => THEMES.includes(v),
+  accent: (v) => ACCENTS.includes(v),
+  density: (v) => DENSITIES.includes(v),
+  fontScale: (v) => FONT_SCALES.includes(v),
+  bubbleStyle: (v) => BUBBLE_STYLES.includes(v),
+};
+
+router.put(
+  '/settings',
+  asyncHandler(async (req, res) => {
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(400, 'Send settings as a JSON object');
+    const keys = Object.keys(body);
+    if (!keys.length) throw new HttpError(400, 'Nothing to update');
+    const $set = {};
+    for (const key of keys) {
+      const valid = SETTING_RULES[key];
+      if (!valid) throw new HttpError(400, `Unknown setting: ${key.slice(0, 40)}`);
+      if (!valid(body[key])) throw new HttpError(400, `Invalid value for ${key}`);
+      $set[`settings.${key}`] = body[key];
+    }
+    const user = await User.findByIdAndUpdate(req.userId, { $set }, { new: true, runValidators: true }).select('settings').lean();
+    res.json({ settings: settingsOf(user) });
   })
 );
 

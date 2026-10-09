@@ -1,5 +1,5 @@
 import { Message, MAX_TEXT_LENGTH, MESSAGE_TYPES } from '../models/Message.js';
-import { PUBLIC_USER_FIELDS } from '../models/User.js';
+import { User, PUBLIC_USER_FIELDS } from '../models/User.js';
 import { loadConversationForUser } from '../middleware/membership.js';
 import { HttpError } from '../utils/http.js';
 import { isValidId } from '../utils/validate.js';
@@ -118,9 +118,21 @@ export function serializeMessageFor(message, viewerId, ctx = {}) {
  * request or socket event (never one query per message).
  * Returns (viewerId) => ctx for serializeMessageFor().
  */
-export async function buildViewerContexts(_participantIds) {
-  const empty = {};
-  return () => empty;
+export async function buildViewerContexts(participantIds) {
+  const receiptsOff = await getReceiptsOff(participantIds);
+  return (viewerId) => ({ receiptsOff, viewerReceiptsOff: receiptsOff.has(String(viewerId)) });
+}
+
+/**
+ * Round 2: which of these users turned read receipts off. One query.
+ * Their reads are still stored (unread counts need them) but hidden from others,
+ * and they don't see anyone else's reads either.
+ */
+export async function getReceiptsOff(userIds) {
+  const ids = [...new Set((userIds ?? []).map(idOf))].filter(isValidId);
+  if (!ids.length) return new Set();
+  const rows = await User.find({ _id: { $in: ids }, 'settings.readReceipts': false }).select('_id').lean();
+  return new Set(rows.map((r) => String(r._id)));
 }
 
 /** Shorthand for a single viewer. */

@@ -6,6 +6,7 @@ import {
   CheckCheck,
   Clock,
   Copy,
+  Info,
   MoreVertical,
   Pencil,
   Pin,
@@ -39,7 +40,7 @@ export function ReceiptTicks({ status }) {
 }
 
 // Items are worked out when the menu opens, so the edit/delete time windows are current.
-function menuItems({ message, myId, isPinned, onPin, onUnpin, onEdit, onDelete, onReply }) {
+function menuItems({ message, myId, isPinned, onPin, onUnpin, onEdit, onDelete, onReply, onInfo }) {
   if (isDeleted(message)) {
     return onDelete ? [{ key: 'hide', label: 'Delete for me', Icon: Trash2, onSelect: () => onDelete(message), danger: true }] : [];
   }
@@ -58,6 +59,9 @@ function menuItems({ message, myId, isPinned, onPin, onUnpin, onEdit, onDelete, 
       Icon: Copy,
       onSelect: () => navigator.clipboard?.writeText(message.text || '').catch(() => {}),
     });
+  }
+  if (onInfo && idOf(message.senderId) === myId) {
+    items.push({ key: 'info', label: 'Message info', Icon: Info, onSelect: () => onInfo(message) });
   }
   if (onEdit && canEdit(message, myId, now)) {
     items.push({ key: 'edit', label: 'Edit', Icon: Pencil, onSelect: () => onEdit(message) });
@@ -217,13 +221,14 @@ function MessageBubble({
   onDelete,
   onReply,
   onJump,
+  onInfo,
   people,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const failed = status === 'failed';
   const confirmed = Boolean(message._id);
   const deleted = isDeleted(message);
-  const items = menuOpen ? menuItems({ message, myId, isPinned, onPin, onUnpin, onEdit, onDelete, onReply }) : null;
+  const items = menuOpen ? menuItems({ message, myId, isPinned, onPin, onUnpin, onEdit, onDelete, onReply, onInfo }) : null;
   const hasMenu = confirmed && (!deleted || Boolean(onDelete));
   const canReply = confirmed && !deleted && Boolean(onReply);
   const gestures = useBubbleGestures({

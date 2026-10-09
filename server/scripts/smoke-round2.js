@@ -400,6 +400,55 @@ async function phase5({ A, B, sB, privId }) {
   void B;
 }
 
+// ── Phase 6: read receipts privacy ───────────────────────────
+async function phase6({ A, B, C, sA, sB, sC }) {
+  section('Phase 6 · settings route and read receipts off');
+  const badKey = await call('PUT', '/users/settings', { token: C.token, body: { isAdmin: true } });
+  const badValue = await call('PUT', '/users/settings', { token: C.token, body: { theme: 'neon' } });
+  const badType = await call('PUT', '/users/settings', { token: C.token, body: { readReceipts: 'no' } });
+  check('unknown setting / bad value / wrong type → 400', badKey.status === 400 && badValue.status === 400 && badType.status === 400, `${badKey.status} ${badValue.status} ${badType.status}`);
+  const off = await call('PUT', '/users/settings', { token: C.token, body: { readReceipts: false, accent: 'violet' } });
+  check('PUT /users/settings saves and returns all settings', off.status === 200 && off.data?.settings?.readReceipts === false && off.data.settings.accent === 'violet' && off.data.settings.theme === 'system', show(off));
+  const me = await call('GET', '/auth/me', { token: C.token });
+  check('/auth/me reflects the new settings', me.data?.user?.settings?.readReceipts === false);
+
+  const group = await call('POST', '/conversations/group', { token: A.token, body: { name: 'Receipts test', memberIds: [B.id, C.id] } });
+  const gid = group.data?.conversation?._id;
+  const sent = (await emitAck(sA.socket, 'send_message', { conversationId: gid, text: 'who read this?', clientId: `p6-${stamp}` })).message;
+  await sleep(300);
+  sA.events.length = 0;
+
+  sB.socket.emit('message_read', { conversationId: gid });
+  const fromB = await waitFor(sA.events, 'message_read', (p) => p?.userId === B.id && p.conversationId === gid);
+  check('reader with receipts on → sender gets message_read', Boolean(fromB));
+  sC.socket.emit('message_read', { conversationId: gid });
+  await sleep(700);
+  check('reader with receipts off → no message_read is sent', !sA.events.some((e) => e.event === 'message_read' && e.payload?.userId === C.id));
+  const stored = await Message.findById(sent._id).lean();
+  check("…but C's read is still stored (unread counts)", stored.readBy.some((r) => String(r.user) === C.id));
+  const listC = await call('GET', '/conversations', { token: C.token });
+  check('…so C has 0 unread in that group', listC.data?.conversations?.find((c) => c._id === gid)?.unreadCount === 0);
+  const histA = await call('GET', `/messages/${gid}`, { token: A.token });
+  const seen = histA.data?.messages?.find((m) => m._id === sent._id);
+  check("sender's history shows B's read but hides C's", seen?.readBy?.some((r) => String(r.user) === B.id) && !seen.readBy.some((r) => String(r.user) === C.id), JSON.stringify(seen?.readBy));
+  check('…while delivery to C stays visible', seen?.deliveredTo?.some((r) => String(r.user) === C.id), JSON.stringify(seen?.deliveredTo));
+
+  // Reciprocity: C (receipts off) can't see other people's reads either.
+  const fromC = (await emitAck(sC.socket, 'send_message', { conversationId: gid, text: 'my own message', clientId: `p6c-${stamp}` })).message;
+  await sleep(300);
+  sC.events.length = 0;
+  sA.socket.emit('message_read', { conversationId: gid });
+  await sleep(700);
+  check('user with receipts off receives no message_read', !sC.events.some((e) => e.event === 'message_read'));
+  const histC = await call('GET', `/messages/${gid}`, { token: C.token });
+  const own = histC.data?.messages?.find((m) => m._id === fromC._id);
+  check('…and sees no readBy on their own messages (max "delivered")', own && own.readBy.length === 0 && own.deliveredTo.length > 0, JSON.stringify(own && { r: own.readBy, d: own.deliveredTo }));
+
+  const editC = await call('PATCH', `/messages/${gid}/${fromC._id}`, { token: C.token, body: { text: 'my own message (edited)' } });
+  check('message_updated / edit responses apply the same rule', editC.status === 200 && editC.data?.message?.readBy?.length === 0, JSON.stringify(editC.data?.message?.readBy));
+  await call('PUT', '/users/settings', { token: C.token, body: { readReceipts: true } });
+}
+
 async function main() {
   console.log(`\nCampusConnect Round 2 smoke test → ${BASE}`);
   try {
@@ -425,6 +474,7 @@ async function main() {
     await phase3(ctx);
     Object.assign(ctx, await phase4(ctx));
     await phase5(ctx);
+    await phase6(ctx);
   } finally {
     [sA, sB, sC].forEach((s) => s.socket.close());
     // Every user this run created, including ones made inside a phase.

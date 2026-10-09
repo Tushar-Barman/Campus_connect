@@ -12,6 +12,7 @@ import ConnectionBanner from './ConnectionBanner.jsx';
 import GroupInfoPanel from '../group/GroupInfoPanel.jsx';
 import ContactPanel from '../group/ContactPanel.jsx';
 import ChatMemoryPanel from '../memory/ChatMemoryPanel.jsx';
+import MessageInfoPanel from './MessageInfoPanel.jsx';
 import ConfirmDialog from '../ui/ConfirmDialog.jsx';
 import AttachSheet from '../media/AttachSheet.jsx';
 import { classifyAttachment } from '../../lib/media.js';
@@ -37,7 +38,8 @@ export default function ChatWindow({ conversation }) {
 
   const pinnedIds = useMemo(() => new Set(pins.pinned.map((m) => m._id)), [pins.pinned]);
 
-  const [panel, setPanel] = useState(null); // 'info' | 'memory' | null
+  const [panel, setPanel] = useState(null); // 'info' | 'memory' | 'message' | null
+  const [infoId, setInfoId] = useState(null); // message shown in the Message info drawer
   const closePanel = useCallback(() => setPanel(null), []);
   const [highlightId, setHighlightId] = useState(null);
   const [notice, setNotice] = useState('');
@@ -94,6 +96,10 @@ export default function ChatWindow({ conversation }) {
     setReplyingTo(null);
     setEditing(message);
   }, []);
+  const showInfo = useCallback((message) => {
+    setInfoId(message._id);
+    setPanel('message');
+  }, []);
   const startReply = useCallback((message) => {
     setEditing(null);
     setReplyingTo(message);
@@ -120,6 +126,19 @@ export default function ChatWindow({ conversation }) {
     if (editing && gone(editing)) setEditing(null);
     if (replyingTo && gone(replyingTo)) setReplyingTo(null);
   }, [chat.messages, editing, replyingTo]);
+
+  // Round 2: turning read receipts on/off changes which reads the server shows us; refetch.
+  const receiptsSetting = user?.settings?.readReceipts;
+  const reloadRef = useRef(chat.reload);
+  reloadRef.current = chat.reload;
+  const firstReceiptsRun = useRef(true);
+  useEffect(() => {
+    if (firstReceiptsRun.current) {
+      firstReceiptsRun.current = false;
+      return;
+    }
+    reloadRef.current?.();
+  }, [receiptsSetting]);
 
   // @mention candidates: everyone else in a group. Private chats have no mentions.
   const members = useMemo(
@@ -237,6 +256,7 @@ export default function ChatWindow({ conversation }) {
         onDelete={onDelete}
         onReply={startReply}
         onJump={jumpTo}
+        onInfo={showInfo}
       />
 
       <Composer
@@ -276,6 +296,14 @@ export default function ChatWindow({ conversation }) {
         <ContactPanel conversation={conversation} open={panel === 'info'} onClose={closePanel} />
       )}
       <ChatMemoryPanel conversationId={id} open={panel === 'memory'} onClose={closePanel} />
+      <MessageInfoPanel
+        open={panel === 'message'}
+        onClose={closePanel}
+        message={infoId ? chat.messages.find((m) => m._id === infoId) : null}
+        conversation={conversation}
+        myId={user?._id}
+        receiptsOff={user?.settings?.readReceipts === false}
+      />
     </div>
   );
 }

@@ -90,6 +90,8 @@ export const usersApi = {
       }),
     ),
   removePicture: () => data(api.delete('/users/profile-picture')),
+  // Round 2: { readReceipts?, theme?, accent?, density?, fontScale?, bubbleStyle? } → { settings }
+  updateSettings: (patch) => data(api.put('/users/settings', patch)),
 };
 
 export const campusesApi = {
