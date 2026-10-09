@@ -9,6 +9,8 @@ conversation into a summary, decisions, action items and dates.
 
 **👉 [campus-connect-one-orcin.vercel.app](https://campus-connect-one-orcin.vercel.app)**
 
+**🎬 Demo video: [watch on Google Drive](https://drive.google.com/file/d/1FTPNtIC8FtHIQ2w8bZcsP0A503Txcwtr/view?usp=sharing)**
+
 | Part | Hosted on | URL |
 |---|---|---|
 | Web app (React) | Vercel | https://campus-connect-one-orcin.vercel.app |
@@ -32,6 +34,41 @@ conversation into a summary, decisions, action items and dates.
    - **Settings (⚙):** switch to dark mode, change the accent colour, or turn off read receipts. ⋮ in a chat header sets a wallpaper or blocks someone.
 
 **Full setup, testing and deployment steps: [`DEPLOY_GUIDE.md`](DEPLOY_GUIDE.md).**
+
+## What makes CampusConnect different
+
+General chat apps are built for everyone. CampusConnect is built for one place: a campus. That changes what the app is good at.
+
+- **Campus is part of who you are, so you can find people you've never met.**
+  - WhatsApp and Telegram need someone's phone number before you can talk.
+  - On CampusConnect, every account belongs to a campus (all 23 IITs), chosen at sign-up.
+  - Search starts with your own campus, so you can find a classmate, lab partner or club member by name, with no number swapping.
+  - One tap on "All campuses" widens the search for inter-IIT teams and fests.
+- **Location sharing made for meeting up on campus.**
+  - Ask someone where they are and they decide whether to answer. Requests expire after 10 minutes.
+  - When sharing, you confirm your position on a map first, can label it ("Library, 2nd floor"), and see how accurate it is.
+  - The **server** checks whether the point is inside your campus and marks it **"On campus ✓"**. The sender's device can't fake that badge.
+  - One tap gives the other person walking directions.
+- **AI Chat Memory turns long group chats into something you can act on.**
+  - Project and club groups bury the important parts under hundreds of messages.
+  - ✨ Chat Memory (Google Gemini) reads the conversation and returns a summary, key decisions, action items with owners, and important dates and deadlines.
+  - Relative dates such as "tomorrow" are resolved to real dates.
+  - The AI runs only on the server, never sees the API key in the browser, and only summarises chats you're a member of.
+- **Privacy that suits a student community.**
+  - Sign-up needs an email, not a phone number.
+  - You can switch off read receipts. As on WhatsApp, you then also stop seeing other people's.
+  - In groups, Message info shows exactly who has read and received each message.
+  - You can block people and permanently delete your account.
+  - Location is never shared automatically.
+- **Nothing to install.**
+  - It runs in any browser on a phone, tablet or laptop, with live typing, presence and sent/delivered/read ticks.
+  - It works well on shared lab PCs and on phones with little storage.
+- **Safer file sharing.**
+  - Every photo, document and voice note is checked by its actual content on the server, not by its file name. A renamed `.exe` is rejected.
+  - Only a short list of safe formats is accepted.
+- **Made to feel like home.**
+  - A Himalayan visual identity inspired by IIT Mandi's Kamand valley.
+  - Light, dark and system themes, 6 accent colours, density, text size and bubble shape settings, and a different wallpaper for each chat.
 
 ## Features
 
