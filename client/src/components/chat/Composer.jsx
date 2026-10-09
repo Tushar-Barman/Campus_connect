@@ -158,7 +158,7 @@ function AttachMenu({ onFiles, extraItems = [] }) {
               }}
               className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm hover:bg-surface-muted"
             >
-              <Icon className="h-4 w-4 text-brand-600" aria-hidden="true" />
+              <Icon className="h-4 w-4 text-accent" aria-hidden="true" />
               {label}
             </button>
           ))}

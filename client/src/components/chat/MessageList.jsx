@@ -94,7 +94,7 @@ export default function MessageList({ conversation, chat, myId, typingUsers, pin
       <>
         <div className="flex h-8 items-center justify-center">
           {loadingOlder ? (
-            <Loader2 className="h-4 w-4 animate-spin text-brand-600" aria-label="Loading older messages" />
+            <Loader2 className="h-4 w-4 animate-spin text-accent" aria-label="Loading older messages" />
           ) : !hasMore ? (
             <span className="text-[11px] text-ink-subtle">Start of conversation</span>
           ) : null}
@@ -162,7 +162,7 @@ export default function MessageList({ conversation, chat, myId, typingUsers, pin
         <button
           type="button"
           onClick={() => scrollToBottom(true)}
-          className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-brand-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-pop animate-slide-up hover:bg-brand-700"
+          className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-brand-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-pop animate-slide-up hover:bg-accent-strong"
         >
           <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
           {unseen} new {unseen === 1 ? 'message' : 'messages'}

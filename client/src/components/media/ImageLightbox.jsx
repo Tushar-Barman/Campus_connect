@@ -29,7 +29,7 @@ export default function ImageLightbox({ src, alt = 'Shared photo', caption, onCl
   const button = 'flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20';
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label="Photo viewer" className="fixed inset-0 z-50 flex flex-col bg-ink/90 animate-fade-in">
+    <div role="dialog" aria-modal="true" aria-label="Photo viewer" className="fixed inset-0 z-50 flex flex-col bg-scrim/90 animate-fade-in">
       <div className="flex justify-end gap-2 p-3">
         <a href={downloadUrl(src)} download className={button} aria-label="Download photo" title="Download">
           <Download className="h-5 w-5" aria-hidden="true" />

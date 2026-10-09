@@ -55,7 +55,7 @@ export default function VoicePlayer({ src, duration = 0, mine }) {
             <div className={`h-full rounded-full ${mine ? 'bg-white' : 'bg-brand-500'}`} style={{ width: `${progress * 100}%` }} />
           </div>
         </div>
-        <p className={`text-[11px] ${mine ? 'text-brand-100' : 'text-ink-subtle'}`}>
+        <p className={`text-[11px] ${mine ? 'text-on-accent-muted' : 'text-ink-subtle'}`}>
           {error ? "Can't play this voice note" : formatDuration(isPlaying || currentTime ? currentTime : total)}
         </p>
       </div>

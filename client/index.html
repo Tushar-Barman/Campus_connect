@@ -4,11 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="CampusConnect — real-time chat for your campus." />
+    <meta name="theme-color" content="#f4f7f6" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--
+      Applies the saved appearance before first paint, so dark mode never flashes white.
+      Keep in step with src/lib/appearance.js (key "cc_appearance" and the data-* names).
+    -->
+    <script>
+      (function () {
+        var a = {};
+        try {
+          a = JSON.parse(localStorage.getItem('cc_appearance') || '{}') || {};
+        } catch (e) {}
+        var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var theme = a.theme === 'light' || a.theme === 'dark' ? a.theme : dark ? 'dark' : 'light';
+        var r = document.documentElement;
+        r.setAttribute('data-theme', theme);
+        r.setAttribute('data-accent', a.accent || 'teal');
+        r.setAttribute('data-density', a.density || 'comfortable');
+        r.setAttribute('data-font', a.fontScale || 'md');
+        r.setAttribute('data-bubble', a.bubbleStyle || 'rounded');
+        r.style.colorScheme = theme;
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
     <title>CampusConnect</title>

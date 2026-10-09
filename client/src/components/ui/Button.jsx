@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react';
 
 const VARIANTS = {
   primary:
-    'bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-800 disabled:bg-brand-300 disabled:shadow-none',
+    'bg-brand-600 text-white shadow-sm hover:bg-accent-strong active:bg-accent-strongest disabled:bg-brand-300 disabled:shadow-none',
   secondary:
     'bg-surface text-ink border border-border hover:bg-surface-muted hover:border-border-strong disabled:text-ink-subtle',
   ghost: 'text-ink-muted hover:bg-surface-muted hover:text-ink disabled:text-ink-subtle',

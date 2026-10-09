@@ -130,7 +130,7 @@ export default function CampusSelect({ label = 'Campus', campuses, value, onChan
                   <span className="block truncate font-medium">{campus.name}</span>
                   <span className="block truncate text-xs text-ink-subtle">{campus.city}</span>
                 </span>
-                {campus.id === value ? <Check className="h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" /> : null}
+                {campus.id === value ? <Check className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" /> : null}
               </li>
             ))
           ) : (

@@ -181,11 +181,11 @@ export default function LocationShareSheet({ open, onClose, onSend, campus, titl
       {step === 'explain' ? (
         <div className="space-y-3 text-sm text-ink-muted">
           <p className="flex items-start gap-2">
-            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
             Share where you are so classmates can find you on campus. Your browser will ask for permission.
           </p>
           <p className="flex items-start gap-2">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
             It's only sent when you press Send, only to this chat, and only once. It's never shared automatically, and you
             can delete it for everyone afterwards.
           </p>

@@ -21,7 +21,7 @@ function PreviewCard() {
           <Avatar name="Robotics Club" size="sm" />
           <div>
             <p className="text-sm font-semibold">Robotics Club</p>
-            <p className="text-xs text-brand-600">Diya is typing…</p>
+            <p className="text-xs text-accent">Diya is typing…</p>
           </div>
         </div>
         <div className="space-y-2.5 bg-canvas px-4 py-4">
@@ -30,7 +30,7 @@ function PreviewCard() {
           </div>
           <div className="ml-auto max-w-[80%] rounded-bubble rounded-br-md bg-brand-600 px-3.5 py-2 text-sm text-white">
             Perfect, I'll bring the Arduino kits.
-            <span className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-brand-100">
+            <span className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-on-accent-muted">
               4:12 pm <CheckCheck className="h-3.5 w-3.5 text-read" />
             </span>
           </div>
@@ -70,7 +70,7 @@ export default function Landing() {
               Made for IIT Mandi
             </span>
             <h1 className="mt-5 text-4xl leading-[1.1] font-extrabold tracking-tight sm:text-5xl">
-              Your campus, in one <span className="text-brand-600">conversation</span>.
+              Your campus, in one <span className="text-accent">conversation</span>.
             </h1>
             <p className="mt-5 max-w-lg text-base text-ink-muted sm:text-lg">
               Chat one-to-one, run your club in a group, send a voice note between lectures, and let Chat Memory

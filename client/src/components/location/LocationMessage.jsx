@@ -24,7 +24,7 @@ export function LocationBubble({ message, mine }) {
           <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="truncate">{loc.label || 'Shared location'}</span>
         </p>
-        <p className={`mt-0.5 flex flex-wrap items-center gap-x-2 text-xs ${mine ? 'text-brand-100' : 'text-ink-subtle'}`}>
+        <p className={`mt-0.5 flex flex-wrap items-center gap-x-2 text-xs ${mine ? 'text-on-accent-muted' : 'text-ink-subtle'}`}>
           <span>Accuracy {formatAccuracy(loc.accuracy)}</span>
           {loc.onCampus ? (
             <span className={`inline-flex items-center gap-0.5 font-semibold ${mine ? 'text-white' : 'text-success'}`}>
@@ -69,12 +69,12 @@ export function LocationRequestCard({ message, mine, onShare, onDecline, onJump 
     }
   };
 
-  const muted = mine ? 'text-brand-100' : 'text-ink-subtle';
+  const muted = mine ? 'text-on-accent-muted' : 'text-ink-subtle';
   let footer;
   if (status === 'pending' && !mine && onShare) {
     footer = (
       <div className="mt-2 flex gap-2">
-        <button type="button" onClick={() => onShare(message)} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700">
+        <button type="button" onClick={() => onShare(message)} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-strong">
           <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> Share
         </button>
         <button type="button" onClick={decline} disabled={declining} className="inline-flex flex-1 items-center justify-center rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-ink-muted hover:bg-surface-muted disabled:opacity-60">

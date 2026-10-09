@@ -66,8 +66,8 @@ export default function UserPicker({ onPick, excludeIds = [], selectedIds = [], 
                     <span className="block truncate text-sm font-semibold">{u.name}</span>
                     <span className="block truncate text-xs text-ink-subtle">{u.email}</span>
                   </span>
-                  {busyId === u._id ? <Loader2 className="h-4 w-4 animate-spin text-brand-600" aria-hidden="true" /> : null}
-                  {selected ? <Check className="h-4 w-4 text-brand-600" aria-label="Selected" role="img" /> : null}
+                  {busyId === u._id ? <Loader2 className="h-4 w-4 animate-spin text-accent" aria-hidden="true" /> : null}
+                  {selected ? <Check className="h-4 w-4 text-accent" aria-label="Selected" role="img" /> : null}
                 </button>
               );
             })

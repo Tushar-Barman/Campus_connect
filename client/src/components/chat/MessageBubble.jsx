@@ -27,10 +27,10 @@ import { LocationBubble, LocationRequestCard } from '../location/LocationMessage
 import MessageText from './MessageText.jsx';
 
 const TICKS = {
-  sending: { Icon: Clock, mine: 'text-brand-200', label: 'Sending' },
-  uploading: { Icon: UploadCloud, mine: 'text-brand-200', label: 'Uploading' },
-  sent: { Icon: Check, mine: 'text-brand-200', label: 'Sent' },
-  delivered: { Icon: CheckCheck, mine: 'text-brand-200', label: 'Delivered' },
+  sending: { Icon: Clock, mine: 'text-on-accent-muted', label: 'Sending' },
+  uploading: { Icon: UploadCloud, mine: 'text-on-accent-muted', label: 'Uploading' },
+  sent: { Icon: Check, mine: 'text-on-accent-muted', label: 'Sent' },
+  delivered: { Icon: CheckCheck, mine: 'text-on-accent-muted', label: 'Delivered' },
   read: { Icon: CheckCheck, mine: 'text-read', label: 'Read' },
   failed: { Icon: AlertCircle, mine: 'text-white', label: 'Failed to send' },
 };
@@ -134,7 +134,7 @@ function ReplyQuote({ quote, mine, myId, onJump }) {
   const content = (
     <>
       {name ? <span className={`block text-xs font-semibold ${mine ? 'text-white' : 'text-brand-700'}`}>{name}</span> : null}
-      <span className={`block truncate text-xs ${mine ? 'text-brand-100' : 'text-ink-muted'} ${quote?.deleted || !quote ? 'italic' : ''}`}>
+      <span className={`block truncate text-xs ${mine ? 'text-on-accent-muted' : 'text-ink-muted'} ${quote?.deleted || !quote ? 'italic' : ''}`}>
         {replySnippet(quote)}
       </span>
     </>
@@ -161,7 +161,7 @@ function ReplyQuote({ quote, mine, myId, onJump }) {
 function MessageBody({ message, mine, myId, people, location }) {
   if (isDeleted(message)) {
     return (
-      <p className={`flex items-center gap-1.5 italic ${mine ? 'text-brand-100' : 'text-ink-subtle'}`}>
+      <p className={`flex items-center gap-1.5 italic ${mine ? 'text-on-accent-muted' : 'text-ink-subtle'}`}>
         <Ban className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         This message was deleted
       </p>
@@ -254,7 +254,7 @@ function MessageBubble({
   return (
     <div
       id={message._id ? `msg-${message._id}` : undefined}
-      className={`group flex items-end gap-1 ${mine ? 'flex-row-reverse' : ''} ${groupedWithPrevious ? 'mt-0.5' : 'mt-3'}`}
+      className={`group flex items-end gap-1 ${mine ? 'flex-row-reverse' : ''} ${groupedWithPrevious ? 'cc-msg-grouped' : 'cc-msg'}`}
     >
       <div className={`flex max-w-[82%] flex-col sm:max-w-[70%] ${mine ? 'items-end' : 'items-start'}`}>
         <div
@@ -285,7 +285,7 @@ function MessageBubble({
               <div className="h-full bg-white transition-[width] duration-200" style={{ width: `${Math.round((message.progress || 0) * 100)}%` }} />
             </div>
           ) : null}
-          <span className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${mine ? 'text-brand-100' : 'text-ink-subtle'}`}>
+          <span className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${mine ? 'text-on-accent-muted' : 'text-ink-subtle'}`}>
             {isPinned && !deleted ? <Pin className="h-3 w-3" aria-label="Pinned" role="img" /> : null}
             {message.editedAt && !deleted ? <span>edited</span> : null}
             <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>

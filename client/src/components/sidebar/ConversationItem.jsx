@@ -54,14 +54,14 @@ function ConversationItem({ conversation, myId, onSelect }) {
             ) : null}
           </p>
           {conversation.lastMessageAt ? (
-            <span className={`shrink-0 text-[11px] ${unread ? 'font-semibold text-brand-600' : 'text-ink-subtle'}`}>
+            <span className={`shrink-0 text-[11px] ${unread ? 'font-semibold text-accent' : 'text-ink-subtle'}`}>
               {formatListTime(conversation.lastMessageAt)}
             </span>
           ) : null}
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           {typingText ? (
-            <p className="truncate text-[13px] font-medium text-brand-600">{typingText}</p>
+            <p className="truncate text-[13px] font-medium text-accent">{typingText}</p>
           ) : (
             <p className={`truncate text-[13px] ${unread ? 'font-medium text-ink' : 'text-ink-muted'}`}>{preview}</p>
           )}

@@ -31,7 +31,7 @@ export default function ChatHeader({ conversation, myId, typingUsers, onToggleSt
   let subtitleClass = 'text-ink-subtle';
   if (typingText) {
     subtitle = typingText;
-    subtitleClass = 'text-brand-600 font-medium';
+    subtitleClass = 'text-accent font-medium';
   } else if (isGroup) {
     subtitle = `${conversation.participants.length} members`;
   } else if (conversation.blockedByMe) {
@@ -91,7 +91,7 @@ export default function ChatHeader({ conversation, myId, typingUsers, onToggleSt
       </Button>
       {CHAT_MEMORY_ENABLED ? (
         <Button variant="ghost" size="icon" onClick={onOpenMemory} aria-label="Chat Memory" title="Chat Memory: AI summary">
-          <Sparkles className="h-4.5 w-4.5 text-brand-600" aria-hidden="true" />
+          <Sparkles className="h-4.5 w-4.5 text-accent" aria-hidden="true" />
         </Button>
       ) : null}
       <Button variant="ghost" size="icon" onClick={onOpenInfo} aria-label={isGroup ? 'Group info' : 'Contact info'} className="hidden sm:inline-flex">

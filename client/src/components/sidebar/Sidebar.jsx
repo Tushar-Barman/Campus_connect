@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronRight, LogOut, MessageSquarePlus, MessagesSquare, Search, Users, X } from 'lucide-react';
+import { ChevronRight, LogOut, MessageSquarePlus, MessagesSquare, Moon, Search, Settings as SettingsIcon, Sun, Users, X } from 'lucide-react';
 import Avatar from '../ui/Avatar.jsx';
 import Button from '../ui/Button.jsx';
 import Input from '../ui/Input.jsx';
@@ -11,6 +11,8 @@ import PeopleResults from './PeopleResults.jsx';
 import CreateGroupModal from '../group/CreateGroupModal.jsx';
 import CampusScopeChip from '../campus/CampusScopeChip.jsx';
 import { useCampuses } from '../../lib/campuses.js';
+import { useAppearance } from '../../lib/appearance.js';
+import { useUpdateSettings } from '../../lib/useSettings.js';
 import { useConversationList } from '../../context/ConversationsContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useDebouncedValue } from '../../lib/useDebouncedValue.js';
@@ -58,6 +60,10 @@ export default function Sidebar() {
   // Round 2: '' = my campus, a campus id, or 'all'. Only affects finding new people.
   const [campusScope, setCampusScope] = useState('');
   const { campuses } = useCampuses();
+  // Round 2: quick light/dark switch (an explicit choice; "System" lives in Settings).
+  const { resolvedTheme } = useAppearance();
+  const updateSettings = useUpdateSettings();
+  const isDark = resolvedTheme === 'dark';
 
   const { conversations, loading, error } = list;
 
@@ -160,9 +166,28 @@ export default function Sidebar() {
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
         <Logo />
-        <Button variant="ghost" size="icon" onClick={onLogout} loading={loggingOut} aria-label="Log out" title="Log out">
-          {loggingOut ? null : <LogOut className="h-4.5 w-4.5" aria-hidden="true" />}
-        </Button>
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => updateSettings({ theme: isDark ? 'light' : 'dark' })}
+            aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+            title={isDark ? 'Light theme' : 'Dark theme'}
+          >
+            {isDark ? <Sun className="h-4.5 w-4.5" aria-hidden="true" /> : <Moon className="h-4.5 w-4.5" aria-hidden="true" />}
+          </Button>
+          <Link
+            to="/settings"
+            aria-label="Settings"
+            title="Settings"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+          >
+            <SettingsIcon className="h-4.5 w-4.5" aria-hidden="true" />
+          </Link>
+          <Button variant="ghost" size="icon" onClick={onLogout} loading={loggingOut} aria-label="Log out" title="Log out">
+            {loggingOut ? null : <LogOut className="h-4.5 w-4.5" aria-hidden="true" />}
+          </Button>
+        </div>
       </header>
 
       <Link

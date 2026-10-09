@@ -61,7 +61,7 @@ export default function MessageInfoPanel({ open, onClose, message, conversation,
     <Drawer open={open} onClose={onClose} title="Message info" icon={Info}>
       <div className="rounded-xl bg-brand-600 px-3.5 py-2 text-sm text-white shadow-sm">
         <p className="line-clamp-4 break-words whitespace-pre-wrap">{previewText(message) || 'Message'}</p>
-        <p className="mt-1 text-right text-[11px] text-brand-100">Sent {when(message.createdAt)}</p>
+        <p className="mt-1 text-right text-[11px] text-on-accent-muted">Sent {when(message.createdAt)}</p>
       </div>
 
       {receiptsOff ? (

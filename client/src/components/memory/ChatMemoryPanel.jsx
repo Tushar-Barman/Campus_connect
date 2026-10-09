@@ -31,7 +31,7 @@ function Section({ icon: Icon, title, items, empty, render }) {
   return (
     <section className="px-4 py-4">
       <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-wider text-ink-subtle uppercase">
-        <Icon className="h-4 w-4 text-brand-600" aria-hidden="true" />
+        <Icon className="h-4 w-4 text-accent" aria-hidden="true" />
         {title}
         {items.length ? <span className="text-ink-subtle">· {items.length}</span> : null}
       </h3>
@@ -48,7 +48,7 @@ function LoadingView() {
   return (
     <div className="space-y-6 px-4 py-5" aria-label="Generating Chat Memory">
       <p className="flex items-center gap-2 text-sm text-ink-muted">
-        <Sparkles className="h-4 w-4 animate-pulse text-brand-600" aria-hidden="true" />
+        <Sparkles className="h-4 w-4 animate-pulse text-accent" aria-hidden="true" />
         Reading the conversation…
       </p>
       {[0, 1, 2].map((i) => (

@@ -50,7 +50,7 @@ export default function PictureUploader({ name, src, onUpload, onRemove, editabl
       <div className="relative">
         <Avatar name={name} src={preview || src} size="xl" />
         {busy ? (
-          <span className="absolute inset-0 flex items-center justify-center rounded-full bg-ink/50 text-sm font-semibold text-white">
+          <span className="absolute inset-0 flex items-center justify-center rounded-full bg-scrim/50 text-sm font-semibold text-white">
             {Math.round(progress * 100)}%
           </span>
         ) : null}
@@ -60,7 +60,7 @@ export default function PictureUploader({ name, src, onUpload, onRemove, editabl
             onClick={() => inputRef.current?.click()}
             disabled={busy}
             aria-label={src ? `Change ${label}` : `Upload ${label}`}
-            className="absolute right-0 bottom-0 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white shadow-card ring-2 ring-surface hover:bg-brand-700"
+            className="absolute right-0 bottom-0 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white shadow-card ring-2 ring-surface hover:bg-accent-strong"
           >
             <Camera className="h-4 w-4" aria-hidden="true" />
           </button>

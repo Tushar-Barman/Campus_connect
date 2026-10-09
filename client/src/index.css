@@ -5,21 +5,43 @@
   This is the ONLY place raw colour values are allowed.
   Each token becomes a Tailwind utility, e.g. --color-brand-600 -> bg-brand-600,
   --radius-card -> rounded-card, --shadow-pop -> shadow-pop.
+
+  Round 2 theming:
+  - Tokens read CSS variables, so they can change at runtime:
+      <html data-theme="light|dark" data-accent="teal|indigo|rose|amber|violet|slate"
+            data-density="comfortable|compact" data-font="sm|md|lg" data-bubble="rounded|soft|sharp">
+    index.html applies the saved values before first paint (no flash).
+  - Accent presets set a 10-step ramp (--a-50 … --a-900); --color-brand-* read it.
+    In dark mode the ramp is folded: 50–200 become dark tints (backgrounds),
+    700–900 become light tints (text), 300–600 stay. So "bg-brand-50 text-brand-800"
+    reads well in both themes, and bg-brand-600 + white text works everywhere.
+  - Semantic tokens for the few places that must not flip:
+      accent          accent-coloured text/icons on surfaces (a-600 light, a-300 dark)
+      accent-strong   strong accent backgrounds behind white text (hover/active, hero panels)
+      on-accent-muted secondary text on an accent background (own bubbles, hero)
+      scrim           always-dark overlay behind dialogs and the photo viewer
 */
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Bricolage Grotesque", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 
-  /* Brand: Himalayan teal */
-  --color-brand-50: #effaf8;
-  --color-brand-100: #d7f0ec;
-  --color-brand-200: #b0e0d9;
-  --color-brand-300: #7fc9bf;
-  --color-brand-400: #4eaea2;
-  --color-brand-500: #2f9387;
-  --color-brand-600: #22766d;
-  --color-brand-700: #1f5f59;
-  --color-brand-800: #1d4d49;
-  --color-brand-900: #1b403d;
+  /* Brand: the selected accent (default Himalayan teal) */
+  --color-brand-50: var(--a-50);
+  --color-brand-100: var(--a-100);
+  --color-brand-200: var(--a-200);
+  --color-brand-300: var(--a-300);
+  --color-brand-400: var(--a-400);
+  --color-brand-500: var(--a-500);
+  --color-brand-600: var(--a-600);
+  --color-brand-700: var(--a-700);
+  --color-brand-800: var(--a-800);
+  --color-brand-900: var(--a-900);
+
+  --color-accent: var(--a-600);
+  --color-accent-strong: var(--a-700);
+  --color-accent-strongest: var(--a-800);
+  --color-on-accent-muted: rgb(255 255 255 / 0.8);
+  --color-scrim: #08100f;
 
   /* Neutrals */
   --color-canvas: #f4f7f6;
@@ -29,16 +51,17 @@
   --color-border-strong: #c5d0cd;
   --color-ink: #0f1f1d;
   --color-ink-muted: #4b5b59;
-  --color-ink-subtle: #8a9896;
+  --color-ink-subtle: #6b7a78;
 
   /* Semantic */
-  --color-success: #16a34a;
+  --color-success: #15803d;
   --color-danger: #dc2626;
   --color-danger-soft: #fef2f2;
   --color-star: #f5a524;
   --color-read: #38bdf8;
   --color-warning-soft: #fff7e6;
   --color-warning-ink: #8a5300;
+  --color-topo: rgb(15 31 29 / 0.07);
 
   /* Avatar fallback tones (background) */
   --color-tone-1: #d7f0ec;
@@ -49,18 +72,101 @@
 
   /* Shape */
   --radius-card: 1rem;
-  --radius-bubble: 1.125rem;
+  --radius-bubble: var(--bubble-radius);
 
-  /* Elevation */
-  --shadow-card: 0 1px 2px rgb(15 31 29 / 0.04), 0 4px 16px rgb(15 31 29 / 0.06);
-  --shadow-pop: 0 12px 40px rgb(15 31 29 / 0.18);
+  /* Elevation: soft, layered */
+  --shadow-card: 0 1px 2px rgb(15 31 29 / 0.04), 0 2px 6px rgb(15 31 29 / 0.04), 0 8px 24px rgb(15 31 29 / 0.06);
+  --shadow-pop: 0 2px 6px rgb(15 31 29 / 0.08), 0 12px 24px rgb(15 31 29 / 0.1), 0 24px 56px rgb(15 31 29 / 0.14);
 
-  /* Motion */
+  /* Motion (150–250 ms; disabled by prefers-reduced-motion below) */
   --animate-fade-in: fade-in 180ms ease-out;
-  --animate-slide-up: slide-up 200ms ease-out;
-  --animate-slide-in: slide-in 220ms ease-out;
+  --animate-slide-up: slide-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-slide-in: slide-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
   --animate-pulse-dot: pulse-dot 1.2s ease-in-out infinite;
 }
+
+/* ── Accent ramps ─────────────────────────────────────────────
+   Each 600 shade keeps ≥ 4.5:1 contrast with white text (bubbles, buttons). */
+:root,
+[data-accent="teal"] {
+  --a-50: #effaf8; --a-100: #d7f0ec; --a-200: #b0e0d9; --a-300: #7fc9bf; --a-400: #4eaea2;
+  --a-500: #2f9387; --a-600: #22766d; --a-700: #1f5f59; --a-800: #1d4d49; --a-900: #1b403d;
+}
+[data-accent="indigo"] {
+  --a-50: #eef2ff; --a-100: #e0e7ff; --a-200: #c7d2fe; --a-300: #a5b4fc; --a-400: #818cf8;
+  --a-500: #6366f1; --a-600: #4f46e5; --a-700: #4338ca; --a-800: #3730a3; --a-900: #312e81;
+}
+[data-accent="rose"] {
+  --a-50: #fff1f2; --a-100: #ffe4e6; --a-200: #fecdd3; --a-300: #fda4af; --a-400: #fb7185;
+  --a-500: #f43f5e; --a-600: #e11d48; --a-700: #be123c; --a-800: #9f1239; --a-900: #881337;
+}
+/* Amber is shifted one step darker so white text stays readable on 600. */
+[data-accent="amber"] {
+  --a-50: #fffbeb; --a-100: #fef3c7; --a-200: #fde68a; --a-300: #fcd34d; --a-400: #fbbf24;
+  --a-500: #d97706; --a-600: #b45309; --a-700: #92400e; --a-800: #78350f; --a-900: #451a03;
+}
+[data-accent="violet"] {
+  --a-50: #f5f3ff; --a-100: #ede9fe; --a-200: #ddd6fe; --a-300: #c4b5fd; --a-400: #a78bfa;
+  --a-500: #8b5cf6; --a-600: #7c3aed; --a-700: #6d28d9; --a-800: #5b21b6; --a-900: #4c1d95;
+}
+[data-accent="slate"] {
+  --a-50: #f8fafc; --a-100: #f1f5f9; --a-200: #e2e8f0; --a-300: #cbd5e1; --a-400: #94a3b8;
+  --a-500: #64748b; --a-600: #475569; --a-700: #334155; --a-800: #1e293b; --a-900: #0f172a;
+}
+
+/* ── Dark theme ───────────────────────────────────────────────
+   Text contrast on --color-surface: ink 14:1, ink-muted 8:1, ink-subtle 5:1, accent ≥ 6:1. */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-canvas: #0d1514;
+  --color-surface: #141d1c;
+  --color-surface-muted: #1c2826;
+  --color-border: #263432;
+  --color-border-strong: #364846;
+  --color-ink: #e7efed;
+  --color-ink-muted: #b4c3c0;
+  --color-ink-subtle: #8a9c99;
+
+  --color-success: #4ade80;
+  --color-danger: #f87171;
+  --color-danger-soft: #3b1719;
+  --color-star: #fbbf24;
+  --color-read: #7dd3fc;
+  --color-warning-soft: #36280c;
+  --color-warning-ink: #fcd38a;
+  --color-topo: rgb(231 239 237 / 0.06);
+
+  --color-tone-1: #1f3d39;
+  --color-tone-2: #41331d;
+  --color-tone-3: #272e52;
+  --color-tone-4: #452333;
+  --color-tone-5: #2b3d1e;
+
+  /* Folded accent ramp (see the note at the top). */
+  --color-brand-50: color-mix(in oklab, var(--a-500) 14%, var(--color-surface));
+  --color-brand-100: color-mix(in oklab, var(--a-500) 24%, var(--color-surface));
+  --color-brand-200: color-mix(in oklab, var(--a-500) 38%, var(--color-surface));
+  --color-brand-700: var(--a-300);
+  --color-brand-800: var(--a-200);
+  --color-brand-900: var(--a-100);
+  --color-accent: var(--a-300);
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
+  --shadow-pop: 0 4px 12px rgb(0 0 0 / 0.35), 0 24px 56px rgb(0 0 0 / 0.45);
+}
+
+/* ── Density, font size, bubble shape ─────────────────────── */
+:root {
+  --bubble-radius: 1.125rem;
+  --msg-gap: 0.75rem;
+  --msg-gap-grouped: 0.125rem;
+}
+[data-bubble="soft"] { --bubble-radius: 0.75rem; }
+[data-bubble="sharp"] { --bubble-radius: 0.375rem; }
+[data-density="compact"] { --msg-gap: 0.4rem; --msg-gap-grouped: 0.0625rem; }
+[data-font="sm"] { font-size: 93.75%; }
+[data-font="lg"] { font-size: 112.5%; }
 
 @keyframes fade-in {
   from { opacity: 0; }
@@ -89,6 +195,12 @@
 
   body {
     @apply bg-canvas text-ink font-sans antialiased;
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+
+  h1, h2, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
   }
 
   :focus-visible {
@@ -106,4 +218,82 @@
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+@layer components {
+  /* Message spacing follows the density setting. */
+  .cc-msg { margin-top: var(--msg-gap); }
+  .cc-msg-grouped { margin-top: var(--msg-gap-grouped); }
+
+  /* Himalayan topographic contours, drawn in --color-topo (follows the theme).
+     Put on a positioned element; the lines sit behind its content. */
+  .cc-topo { position: relative; isolation: isolate; }
+  .cc-topo::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: var(--color-topo);
+    -webkit-mask-image: var(--topo-svg);
+    mask-image: var(--topo-svg);
+    -webkit-mask-size: 360px 360px;
+    mask-size: 360px 360px;
+  }
+  .cc-topo-strong::before { background-color: rgb(255 255 255 / 0.09); }
+}
+
+:root {
+  --topo-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360' viewBox='0 0 360 360' fill='none' stroke='black' stroke-width='1.3'%3E%3Cpath d='M-20 52c46-30 94 32 146 4s96-46 150-14 72 20 104 6'/%3E%3Cpath d='M-20 84c50-28 96 34 150 6s98-44 150-12 70 22 100 8'/%3E%3Cpath d='M-20 118c52-26 100 34 154 8s100-42 150-10 66 22 96 10'/%3E%3Cpath d='M-20 154c54-22 104 30 158 8s100-36 150-6 62 18 92 8'/%3E%3Cpath d='M228 228c34-30 86-8 82 34s-52 58-88 36-30-46 6-70z'/%3E%3Cpath d='M242 240c22-19 56-5 53 22s-34 37-57 23-19-29 4-45z'/%3E%3Cpath d='M255 252c11-9 28-2 26 11s-17 18-28 11-9-15 2-22z'/%3E%3Cpath d='M44 248c30-26 76-6 72 30s-46 50-78 30-26-40 6-60z'/%3E%3Cpath d='M58 260c18-15 46-3 43 18s-28 30-47 18-15-24 4-36z'/%3E%3Cpath d='M-20 330c60-24 120 22 180 0s110-30 220 6'/%3E%3C/svg%3E");
+}
+
+/* ── Chat wallpapers (per user, per chat) ─────────────────────
+   Preset ids are mirrored in server/src/services/conversations.js. Each has a
+   dark variant. A scrim keeps bubbles and date pills readable on any of them. */
+.cc-wall { position: absolute; inset: 0; pointer-events: none; }
+.cc-wall::after { content: ""; position: absolute; inset: 0; background: var(--color-canvas); opacity: 0.25; }
+
+.cc-wall-mist { background: linear-gradient(160deg, #e3f3f0 0%, #f4f7f6 55%, #e8eef6 100%); }
+.cc-wall-dawn { background: linear-gradient(160deg, #fde8d7 0%, #f9eef4 50%, #e9e6fb 100%); }
+.cc-wall-pine { background: linear-gradient(170deg, #dcefe2 0%, #eef6ef 60%, #e2efe9 100%); }
+.cc-wall-dusk { background: linear-gradient(160deg, #e2e5fb 0%, #f1e8f6 55%, #fbe6ea 100%); }
+.cc-wall-sand { background: linear-gradient(160deg, #f6eedf 0%, #f9f4ea 60%, #efe7d8 100%); }
+.cc-wall-contour { background-color: #eaf3f1; }
+.cc-wall-contour::before {
+  content: ""; position: absolute; inset: 0; background-color: rgb(31 95 89 / 0.16);
+  -webkit-mask-image: var(--topo-svg); mask-image: var(--topo-svg);
+  -webkit-mask-size: 300px 300px; mask-size: 300px 300px;
+}
+.cc-wall-dots { background-color: #f1f4f3; background-image: radial-gradient(rgb(15 31 29 / 0.12) 1.2px, transparent 1.4px); background-size: 18px 18px; }
+.cc-wall-grid {
+  background-color: #f3f6f5;
+  background-image: linear-gradient(rgb(15 31 29 / 0.06) 1px, transparent 1px), linear-gradient(90deg, rgb(15 31 29 / 0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+[data-theme="dark"] .cc-wall::after { opacity: 0.35; }
+[data-theme="dark"] .cc-wall-mist { background: linear-gradient(160deg, #10302c 0%, #0d1514 55%, #141c2c 100%); }
+[data-theme="dark"] .cc-wall-dawn { background: linear-gradient(160deg, #3a2418 0%, #2a1a26 50%, #1d1a36 100%); }
+[data-theme="dark"] .cc-wall-pine { background: linear-gradient(170deg, #12301d 0%, #0f1d16 60%, #10261f 100%); }
+[data-theme="dark"] .cc-wall-dusk { background: linear-gradient(160deg, #1b1f42 0%, #261a33 55%, #351822 100%); }
+[data-theme="dark"] .cc-wall-sand { background: linear-gradient(160deg, #2e2616 0%, #231d12 60%, #2a2214 100%); }
+[data-theme="dark"] .cc-wall-contour { background-color: #0f1d1b; }
+[data-theme="dark"] .cc-wall-contour::before { background-color: rgb(127 201 191 / 0.14); }
+[data-theme="dark"] .cc-wall-dots { background-color: #0f1716; background-image: radial-gradient(rgb(231 239 237 / 0.1) 1.2px, transparent 1.4px); }
+[data-theme="dark"] .cc-wall-grid {
+  background-color: #0f1716;
+  background-image: linear-gradient(rgb(231 239 237 / 0.05) 1px, transparent 1px), linear-gradient(90deg, rgb(231 239 237 / 0.05) 1px, transparent 1px);
+}
+
+/* Lazy emoji picker (emoji-picker-react) follows the app's tokens. */
+.cc-emoji .EmojiPickerReact {
+  --epr-bg-color: var(--color-surface);
+  --epr-category-label-bg-color: var(--color-surface);
+  --epr-text-color: var(--color-ink);
+  --epr-search-input-bg-color: var(--color-surface-muted);
+  --epr-hover-bg-color: var(--color-brand-100);
+  --epr-focus-bg-color: var(--color-brand-100);
+  --epr-highlight-color: var(--color-brand-600);
+  --epr-picker-border-color: var(--color-border);
+  border-radius: var(--radius-card);
 }

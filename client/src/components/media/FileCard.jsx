@@ -43,7 +43,7 @@ export default function FileCard({ message, mine }) {
         <span className="block truncate text-sm font-semibold" title={message.fileName}>
           {message.fileName || 'Document'}
         </span>
-        <span className={`block text-xs ${mine ? 'text-brand-100' : 'text-ink-subtle'}`}>
+        <span className={`block text-xs ${mine ? 'text-on-accent-muted' : 'text-ink-subtle'}`}>
           {meta.label} · {formatBytes(message.fileSize)}
         </span>
       </span>

@@ -4,7 +4,7 @@ import Button from './Button.jsx';
 export function Spinner({ className = 'h-5 w-5', label = 'Loading' }) {
   return (
     <span role="status" className="inline-flex">
-      <Loader2 className={`animate-spin text-brand-600 ${className}`} aria-hidden="true" />
+      <Loader2 className={`animate-spin text-accent ${className}`} aria-hidden="true" />
       <span className="sr-only">{label}</span>
     </span>
   );
@@ -29,7 +29,7 @@ export function EmptyState({ icon: Icon, title, description, action, className =
   return (
     <div className={`flex flex-col items-center justify-center px-6 py-10 text-center animate-fade-in ${className}`}>
       {Icon ? (
-        <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+        <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-accent">
           <Icon className="h-7 w-7" aria-hidden="true" />
         </span>
       ) : null}

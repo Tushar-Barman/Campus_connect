@@ -30,7 +30,7 @@ export default function Drawer({ open, onClose, title, icon: Icon, children, foo
 
   return createPortal(
     <div className="fixed inset-0 z-40 flex justify-end">
-      <div className="absolute inset-0 bg-ink/30 animate-fade-in" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-scrim/30 animate-fade-in" onClick={onClose} aria-hidden="true" />
       <aside
         ref={panelRef}
         role="dialog"
@@ -41,7 +41,7 @@ export default function Drawer({ open, onClose, title, icon: Icon, children, foo
         className="relative flex h-full w-full flex-col bg-surface shadow-pop animate-slide-in focus:outline-none sm:max-w-[420px]"
       >
         <header className="flex items-center gap-2 border-b border-border px-4 py-3">
-          {Icon ? <Icon className="h-5 w-5 text-brand-600" aria-hidden="true" /> : null}
+          {Icon ? <Icon className="h-5 w-5 text-accent" aria-hidden="true" /> : null}
           <h2 id={titleId} className="flex-1 text-base font-semibold">{title}</h2>
           <button
             type="button"

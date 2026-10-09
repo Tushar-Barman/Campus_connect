@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { authApi, setUnauthorizedHandler } from '../lib/api.js';
 import { TOKEN_KEY, tokenStore } from '../lib/storage.js';
 import { connectSocket, disconnectSocket } from '@p3/lib/socket.js';
+import { applyAppearance, pickAppearance } from '../lib/appearance.js';
 
 const AuthContext = createContext(null);
 
@@ -93,6 +94,12 @@ export function AuthProvider({ children }) {
   const updateUser = useCallback((patch) => {
     setUser((current) => (current ? { ...current, ...patch } : current));
   }, []);
+
+  // Round 2: the account's saved appearance wins over this browser's copy once we know it.
+  const settingsKey = user?.settings ? JSON.stringify(pickAppearance(user.settings)) : null;
+  useEffect(() => {
+    if (settingsKey) applyAppearance(JSON.parse(settingsKey));
+  }, [settingsKey]);
 
   const value = useMemo(
     // forgetSession: drop the local session without calling the server (Round 2: the account was just deleted).

@@ -284,7 +284,7 @@ export default function ChatWindow({ conversation }) {
       <ConnectionBanner />
       <PinnedBar pinned={pins.pinned} onJump={jumpTo} onUnpin={(m) => setPinned(m._id, false)} />
       {notice ? (
-        <div role="status" className="bg-ink px-3 py-1.5 text-center text-xs text-white animate-fade-in">
+        <div role="status" className="bg-scrim/90 px-3 py-1.5 text-center text-xs text-white animate-fade-in">
           {notice}
         </div>
       ) : null}

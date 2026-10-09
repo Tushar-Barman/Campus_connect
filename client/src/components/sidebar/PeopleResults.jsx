@@ -28,7 +28,7 @@ function PersonRow({ user, onPick, disabled, starting, otherCampus }) {
           </span>
           <span className="block truncate text-xs text-ink-subtle">{user.email}</span>
         </span>
-        {starting ? <Loader2 className="h-4 w-4 animate-spin text-brand-600" aria-label="Opening chat" /> : null}
+        {starting ? <Loader2 className="h-4 w-4 animate-spin text-accent" aria-label="Opening chat" /> : null}
       </button>
     </li>
   );

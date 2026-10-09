@@ -46,7 +46,7 @@ export default function CampusScopeChip({ campuses, myCampus, value, onChange })
         aria-label={`Searching ${label}. Change campus`}
         className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-surface px-2.5 text-xs font-semibold text-ink-muted transition-colors hover:border-brand-300 hover:text-ink"
       >
-        <Icon className="h-3.5 w-3.5 text-brand-600" aria-hidden="true" />
+        <Icon className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
         {label}
         <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
@@ -70,7 +70,7 @@ export default function CampusScopeChip({ campuses, myCampus, value, onChange })
                 {option.label}
                 {option.mine ? <span className="ml-1 text-xs text-ink-subtle">(yours)</span> : null}
               </span>
-              {effective === option.id ? <Check className="h-4 w-4 text-brand-600" aria-hidden="true" /> : null}
+              {effective === option.id ? <Check className="h-4 w-4 text-accent" aria-hidden="true" /> : null}
             </button>
           ))}
         </div>

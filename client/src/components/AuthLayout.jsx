@@ -12,7 +12,7 @@ const POINTS = [
 export default function AuthLayout({ title, subtitle, children, footer }) {
   return (
     <div className="flex min-h-dvh bg-canvas">
-      <aside className="relative hidden w-[44%] max-w-xl flex-col justify-between overflow-hidden bg-brand-800 p-10 text-white lg:flex">
+      <aside className="relative hidden w-[44%] max-w-xl flex-col justify-between overflow-hidden bg-accent-strongest p-10 text-white lg:flex">
         <div className="pointer-events-none absolute -right-24 -bottom-24 h-96 w-96 rounded-full bg-brand-600/40 blur-3xl" aria-hidden="true" />
         <div className="pointer-events-none absolute top-1/3 -left-20 h-72 w-72 rounded-full bg-brand-500/20 blur-3xl" aria-hidden="true" />
         <Link to="/" className="relative w-fit rounded-xl">
@@ -24,7 +24,7 @@ export default function AuthLayout({ title, subtitle, children, footer }) {
           </h2>
           <ul className="mt-8 space-y-4">
             {POINTS.map(({ icon: Icon, text }) => (
-              <li key={text} className="flex items-center gap-3 text-brand-100">
+              <li key={text} className="flex items-center gap-3 text-on-accent-muted">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
                   <Icon className="h-4.5 w-4.5" aria-hidden="true" />
                 </span>
@@ -33,7 +33,7 @@ export default function AuthLayout({ title, subtitle, children, footer }) {
             ))}
           </ul>
         </div>
-        <p className="relative text-xs text-brand-200">Built for First Commit · IIT Mandi</p>
+        <p className="relative text-xs text-on-accent-muted">Built for First Commit · IIT Mandi</p>
       </aside>
 
       <main className="flex flex-1 flex-col items-center justify-center px-4 py-10 sm:px-8">

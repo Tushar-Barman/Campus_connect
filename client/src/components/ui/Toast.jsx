@@ -7,7 +7,7 @@ const DURATION_MS = 3500;
 const STYLES = {
   success: { Icon: CheckCircle2, className: 'text-success' },
   error: { Icon: AlertTriangle, className: 'text-danger' },
-  info: { Icon: Info, className: 'text-brand-600' },
+  info: { Icon: Info, className: 'text-accent' },
 };
 
 export function ToastProvider({ children }) {

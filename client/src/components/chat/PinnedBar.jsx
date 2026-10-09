@@ -12,7 +12,7 @@ export default function PinnedBar({ pinned, onJump, onUnpin }) {
   return (
     <div className="border-b border-border bg-surface/95">
       <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
-        <Pin className="h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
+        <Pin className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
         <button
           type="button"
           onClick={() => onJump(latest._id)}

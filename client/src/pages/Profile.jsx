@@ -1,13 +1,10 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, Mail, ShieldCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Mail, Settings as SettingsIcon } from 'lucide-react';
 import Button from '../components/ui/Button.jsx';
 import Input from '../components/ui/Input.jsx';
 import { Alert } from '../components/ui/Feedback.jsx';
 import PictureUploader from '../components/media/PictureUploader.jsx';
-import Switch from '../components/ui/Switch.jsx';
-import DeleteAccountDialog from '../components/account/DeleteAccountDialog.jsx';
-import BlockedUsersList from '../components/account/BlockedUsersList.jsx';
 import CampusSelect from '../components/campus/CampusSelect.jsx';
 import { useCampuses } from '../lib/campuses.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -18,16 +15,8 @@ import { validateName } from '../lib/validation.js';
 const BIO_MAX = 160;
 
 export default function Profile() {
-  const { user, updateUser, forgetSession } = useAuth();
-  const navigate = useNavigate();
-  const [deleting, setDeleting] = useState(false);
+  const { user, updateUser } = useAuth();
 
-  // The account no longer exists: drop the session locally (no logout call) and go home.
-  const onAccountDeleted = () => {
-    forgetSession();
-    navigate('/', { replace: true });
-    toast.success('Your account was deleted');
-  };
   const toast = useToast();
 
   const { campuses } = useCampuses();
@@ -65,22 +54,6 @@ export default function Profile() {
       setServerError(getErrorMessage(err, 'Could not save your profile.'));
     } finally {
       setSaving(false);
-    }
-  };
-
-  // Round 2: read receipts (moves to the Settings page later).
-  const [savingReceipts, setSavingReceipts] = useState(false);
-  const receiptsOn = user?.settings?.readReceipts !== false;
-  const setReceipts = async (on) => {
-    setSavingReceipts(true);
-    try {
-      const { settings } = await usersApi.updateSettings({ readReceipts: on });
-      updateUser({ settings });
-      toast.success(on ? 'Read receipts turned on' : 'Read receipts turned off');
-    } catch (err) {
-      toast.error(getErrorMessage(err, 'Could not change read receipts.'));
-    } finally {
-      setSavingReceipts(false);
     }
   };
 
@@ -167,37 +140,16 @@ export default function Profile() {
           </form>
         </div>
 
-        {user?.settings ? (
-          <section className="mt-6 rounded-card border border-border bg-surface p-6 shadow-card animate-slide-up" aria-labelledby="privacy-title">
-            <h2 id="privacy-title" className="mb-4 flex items-center gap-2 text-sm font-semibold">
-              <ShieldCheck className="h-4 w-4 text-brand-600" aria-hidden="true" />
-              Privacy
-            </h2>
-            <Switch
-              label="Read receipts"
-              description="When this is off, nobody sees when you've read their messages, in private chats and groups, and you won't see read receipts from others either. Unread counts still work."
-              checked={receiptsOn}
-              busy={savingReceipts}
-              onChange={setReceipts}
-            />
-            <h3 className="mt-6 mb-2 text-sm font-medium text-ink">Blocked people</h3>
-            <BlockedUsersList />
-          </section>
-        ) : null}
-
-        <section className="mt-6 rounded-card border border-danger/30 bg-surface p-6 shadow-card animate-slide-up" aria-labelledby="danger-title">
-          <h2 id="danger-title" className="flex items-center gap-2 text-sm font-semibold text-danger">
-            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-            Danger zone
-          </h2>
-          <p className="mt-2 text-sm text-ink-muted">
-            Permanently delete your account, your private chats and your messages in groups.
-          </p>
-          <Button variant="danger" className="mt-4" onClick={() => setDeleting(true)}>
-            Delete account
-          </Button>
-        </section>
-        <DeleteAccountDialog open={deleting} onClose={() => setDeleting(false)} onDeleted={onAccountDeleted} />
+        <Link
+          to="/settings"
+          className="mt-6 flex items-center gap-3 rounded-card border border-border bg-surface p-4 shadow-card transition-colors hover:bg-surface-muted"
+        >
+          <SettingsIcon className="h-5 w-5 text-accent" aria-hidden="true" />
+          <span className="flex-1">
+            <span className="block text-sm font-semibold">Settings</span>
+            <span className="block text-xs text-ink-subtle">Theme, read receipts, blocked people, delete account</span>
+          </span>
+        </Link>
       </main>
     </div>
   );
